@@ -216,6 +216,16 @@ const ScheduleTab = ({ user }: { user: User }) => {
         await addEvent(eventPayload);
       }
       setIsModalOpen(false);
+      // Reset form data after closing
+      setFormData({
+        title: '',
+        time: '12:00',
+        location: '',
+        desc: '',
+        cat: 'OTHER',
+        link: ''
+      });
+      setEditingEvent(null);
     } catch (err) {
       console.error(err);
       alert('Error saving event.');
@@ -309,7 +319,7 @@ const ScheduleTab = ({ user }: { user: User }) => {
   return (
     <div id="schedule-tab" className="pb-32">
       {/* Date Picker */}
-      <div className="flex gap-2 overflow-x-auto px-6 pt-2 pb-0 no-scrollbar">
+      <div className="flex gap-2 overflow-x-auto overflow-y-hidden px-6 pt-2 pb-0 no-scrollbar whitespace-nowrap">
         {days.map((date, idx) => (
           <motion.button
             key={idx}
@@ -464,13 +474,13 @@ const ScheduleTab = ({ user }: { user: User }) => {
               onClick={() => setIsModalOpen(false)}
               className="absolute inset-0 bg-brand-dark/40 backdrop-blur-sm"
             />
-            <motion.div
-              initial={{ y: "100%" }}
-              animate={{ y: 0 }}
-              exit={{ y: "100%" }}
-              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-              className="relative w-full max-w-md bg-white rounded-t-[2.5rem] sm:rounded-[2.5rem] p-8 shadow-2xl overflow-hidden"
-            >
+              <motion.div
+                initial={{ y: "100%" }}
+                animate={{ y: 0 }}
+                exit={{ y: "100%" }}
+                transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+                className="relative w-full max-w-md bg-white rounded-t-[2.5rem] sm:rounded-[2.5rem] p-8 shadow-2xl overflow-visible"
+              >
               <div className="w-12 h-1 bg-brand-dark/10 rounded-full mx-auto mb-6 sm:hidden" />
               
               <div className="flex justify-between items-center mb-6">
@@ -498,18 +508,18 @@ const ScheduleTab = ({ user }: { user: User }) => {
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-1">
+                <div className="flex gap-4 items-end">
+                  <div className="w-24 space-y-1">
                     <label className="text-[10px] font-bold uppercase tracking-widest text-brand-dark/40 ml-1">Time</label>
                     <input
                       required
                       type="time"
                       value={formData.time}
                       onChange={(e) => setFormData({ ...formData, time: e.target.value })}
-                      className="w-full px-4 py-3 bg-brand-beige/50 rounded-xl border border-brand-green/20 focus:outline-none focus:border-brand-accent font-sans text-sm"
+                      className="w-full px-3 py-3 bg-brand-beige/50 rounded-xl border border-brand-green/20 focus:outline-none focus:border-brand-accent font-sans text-sm"
                     />
                   </div>
-                  <div className="space-y-1">
+                  <div className="flex-1 space-y-1">
                     <label className="text-[10px] font-bold uppercase tracking-widest text-brand-dark/40 ml-1">Category</label>
                     <select
                       value={formData.cat}
