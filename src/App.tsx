@@ -23,7 +23,14 @@ import {
   Utensils,
   Search
 } from 'lucide-react';
-import { auth, db } from './lib/firebase';
+import { 
+  auth, 
+  db, 
+  addEvent, 
+  updateEvent, 
+  subscribeToEvents, 
+  seedEventsIfEmpty 
+} from './lib/firebase';
 import { 
   signInWithPopup, 
   GoogleAuthProvider, 
@@ -110,10 +117,9 @@ const Header = ({ title, subtitle, avatars }: { title: string; subtitle?: string
 // --- Tabs Implementation ---
 
 const ScheduleTab = ({ user }: { user: User }) => {
-  // Use a stable trip ID for this demo/turn
-  const tripId = "europe-2026-trip";
   const [events, setEvents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedDay, setSelectedDay] = useState(0);
 
   // Map strings to Lucide components
   const iconMap: Record<string, any> = {
@@ -139,51 +145,18 @@ const ScheduleTab = ({ user }: { user: User }) => {
   };
 
   const days = generateDates();
-  const [selectedDay, setSelectedDay] = useState(0);
 
   useEffect(() => {
-    // Initial data seeding
-    const seedInitialData = async () => {
-      const q = query(collection(db, 'trips', tripId, 'events'));
-      const snapshot = await getDoc(doc(db, 'trips', tripId)); // Just check if trip document exists as a proxy
-      
-      const eventsSnap = await collection(db, 'trips', tripId, 'events');
-      // We check if we have any events
-      // Actually simpler: just check if the trip doc has been visited/initialized
-      const hasInitialized = localStorage.getItem(`trip_init_${tripId}`);
-      if (!hasInitialized) {
-        const initialEvents = [
-          { time: '09:30', title: 'AMS Schiphol Arrival', cat: 'Transport', icon: 'Plane', location: 'Schiphol Airport, Amsterdam', desc: 'Terminal arrival and luggage collection. Transfer to city center via NS Train.', color: 'bg-orange-100 text-orange-600', dayIndex: 0 },
-          { time: '12:00', title: 'Hotel Pulitzer Check-in', cat: 'Stay', icon: 'Hotel', location: 'Prinsengracht 323, Amsterdam', desc: 'Check into the historic canal house hotel. Quick refresh before city exploration.', color: 'bg-sky-100 text-sky-600', dayIndex: 0 },
-          { time: '14:30', title: 'Anne Frank House', cat: 'Sights', icon: 'MapPin', location: 'Westermarkt 20, Amsterdam', desc: 'Self-guided tour with an audio guide through the Secret Annex.', color: 'bg-emerald-100 text-emerald-600', dayIndex: 0 },
-          { time: '18:30', title: 'Canal Cruise Dinner', cat: 'Food', icon: 'Utensils', location: 'Central Station Pier', desc: 'Scenic twilight cruise through the historic canals with a 3-course Dutch meal.', color: 'bg-amber-100 text-amber-600', dayIndex: 0 }
-        ];
+    if (user) {
+      seedEventsIfEmpty();
+    }
+  }, [user]);
 
-        for (const ev of initialEvents) {
-          await addDoc(collection(db, 'trips', tripId, 'events'), ev);
-        }
-        localStorage.setItem(`trip_init_${tripId}`, 'true');
-      }
-    };
-
-    if (user) seedInitialData();
-
-    const q = query(
-      collection(db, 'trips', tripId, 'events'),
-      where('dayIndex', '==', selectedDay)
-    );
-    
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const items = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
-      // Sort by time
-      items.sort((a: any, b: any) => a.time.localeCompare(b.time));
+  useEffect(() => {
+    setLoading(true);
+    const unsubscribe = subscribeToEvents(selectedDay, (items) => {
       setEvents(items);
       setLoading(false);
-    }, (error) => {
-      console.error("Firestore read error:", error);
     });
     
     return () => unsubscribe();
@@ -198,18 +171,25 @@ const ScheduleTab = ({ user }: { user: User }) => {
     const desc = prompt("Description:");
     
     try {
-      await addDoc(collection(db, 'trips', tripId, 'events'), {
+      const newEvent = {
         title,
         time,
         location: location || '',
         desc: desc || '',
         dayIndex: selectedDay,
-        icon: 'MapPin', // Default
-        cat: 'Activity', // Default
-        color: 'bg-indigo-100 text-indigo-600' // Default
-      });
+        icon: 'MapPin',
+        cat: 'Activity',
+        color: 'bg-indigo-100 text-indigo-600'
+      };
+      
+      console.log("Submitting new event...", newEvent);
+      await addEvent(newEvent);
+      console.log("Add event call finished");
     } catch (err) {
-      console.error("Add event error:", err);
+      console.error("handleAddEvent error:", err);
+      alert("Failed to add event: " + (err instanceof Error ? err.message : String(err)));
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -218,10 +198,9 @@ const ScheduleTab = ({ user }: { user: User }) => {
     if (newTitle === null) return;
     
     try {
-      const eventRef = doc(db, 'trips', tripId, 'events', event.id);
-      await updateDoc(eventRef, { title: newTitle });
+      await updateEvent(event.id, { title: newTitle });
     } catch (err) {
-      console.error("Update event error:", err);
+      alert("Failed to update event.");
     }
   };
 
