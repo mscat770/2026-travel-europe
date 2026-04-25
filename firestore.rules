@@ -1,8 +1,64 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    // 0. Global Safety Net
     match /{document=**} {
-      allow read, write: if true;
+      allow read, write: if false;
+    }
+
+    // 1. Globals & Helpers
+    function isSignedIn() { return request.auth != null; }
+    function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+    
+    // Auth token verification (optional but recommended)
+    // function isVerified() { return request.auth.token.email_verified == true; }
+
+    // 2. Entity Validators
+    function isValidTrip(data) {
+      return data.keys().hasAll(['title', 'ownerId']) 
+        && data.title is string && data.title.size() <= 100
+        && data.ownerId == request.auth.uid;
+    }
+
+    function isValidEvent(data) {
+      return data.keys().hasAll(['time', 'title', 'dayIndex'])
+        && data.time is string && data.time.size() <= 20
+        && data.title is string && data.title.size() <= 100
+        && data.dayIndex is int
+        && (data.get('location', '') is string && data.get('location', '').size() <= 200)
+        && (data.get('desc', '') is string && data.get('desc', '').size() <= 500);
+    }
+
+    function isValidTodo(data) {
+      return data.keys().hasAll(['text', 'completed', 'authorId'])
+        && data.text is string && data.text.size() <= 200
+        && data.completed is bool
+        && data.authorId == request.auth.uid;
+    }
+
+    // 3. Collection Rules
+    match /trips/{tripId} {
+      allow get: if isSignedIn();
+      allow list: if isSignedIn();
+      allow create: if isSignedIn() && isValidTrip(incoming()) && isValidId(tripId);
+      allow update: if isSignedIn() && isValidTrip(incoming()) && incoming().ownerId == existing().ownerId;
+      allow delete: if isSignedIn() && existing().ownerId == request.auth.uid;
+
+      match /events/{eventId} {
+        allow read: if isSignedIn();
+        allow create: if isSignedIn() && isValidEvent(incoming()) && isValidId(eventId);
+        allow update: if isSignedIn() && isValidEvent(incoming());
+        allow delete: if isSignedIn(); // Basic protection: signed in. Could be more strict.
+      }
+
+      match /todos/{todoId} {
+        allow read: if isSignedIn();
+        allow create: if isSignedIn() && isValidTodo(incoming()) && isValidId(todoId);
+        allow update: if isSignedIn() && isValidTodo(incoming()) && incoming().authorId == existing().authorId;
+        allow delete: if isSignedIn() && existing().authorId == request.auth.uid;
+      }
     }
   }
 }

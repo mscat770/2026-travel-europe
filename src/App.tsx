@@ -85,16 +85,22 @@ const Header = ({ title, subtitle, avatars }: { title: string; subtitle?: string
           </p>
         )}
       </div>
-      <div className="flex -space-x-2">
-        {avatars?.map((avatar, i) => (
-          <div 
-            key={avatar.id} 
-            className="w-8 h-8 rounded-full border-2 border-brand-beige overflow-hidden bg-brand-green/30"
-            style={{ zIndex: avatars.length - i }}
-          >
-            <img src={avatar.url} alt="avatar" className="w-full h-full object-cover" />
+      <div className="flex -space-x-2 items-center">
+        {avatars?.length > 0 ? (
+          avatars.map((avatar, i) => (
+            <div 
+              key={avatar.id} 
+              className="w-8 h-8 rounded-full border-2 border-brand-beige overflow-hidden bg-brand-green/30"
+              style={{ zIndex: avatars.length - i }}
+            >
+              <img src={avatar.url} alt="avatar" className="w-full h-full object-cover" />
+            </div>
+          ))
+        ) : (
+          <div className="w-8 h-8 rounded-full bg-brand-dark/10 flex items-center justify-center text-[10px] font-bold text-brand-dark/40">
+            ?
           </div>
-        ))}
+        )}
       </div>
     </div>
     <div className="w-full border-t border-dashed border-gray-300 mt-3 opacity-60" />
@@ -103,7 +109,22 @@ const Header = ({ title, subtitle, avatars }: { title: string; subtitle?: string
 
 // --- Tabs Implementation ---
 
-const ScheduleTab = () => {
+const ScheduleTab = ({ user }: { user: User }) => {
+  // Use a stable trip ID for this demo/turn
+  const tripId = "europe-2026-trip";
+  const [events, setEvents] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // Map strings to Lucide components
+  const iconMap: Record<string, any> = {
+    'Plane': Plane,
+    'Hotel': Hotel,
+    'MapPin': MapPin,
+    'Utensils': Utensils,
+    'Camera': Camera,
+    'ShoppingCart': Search // Default for now
+  };
+
   // Generate dates from May 21 to June 5
   const generateDates = () => {
     const dates = [];
@@ -119,6 +140,90 @@ const ScheduleTab = () => {
 
   const days = generateDates();
   const [selectedDay, setSelectedDay] = useState(0);
+
+  useEffect(() => {
+    // Initial data seeding
+    const seedInitialData = async () => {
+      const q = query(collection(db, 'trips', tripId, 'events'));
+      const snapshot = await getDoc(doc(db, 'trips', tripId)); // Just check if trip document exists as a proxy
+      
+      const eventsSnap = await collection(db, 'trips', tripId, 'events');
+      // We check if we have any events
+      // Actually simpler: just check if the trip doc has been visited/initialized
+      const hasInitialized = localStorage.getItem(`trip_init_${tripId}`);
+      if (!hasInitialized) {
+        const initialEvents = [
+          { time: '09:30', title: 'AMS Schiphol Arrival', cat: 'Transport', icon: 'Plane', location: 'Schiphol Airport, Amsterdam', desc: 'Terminal arrival and luggage collection. Transfer to city center via NS Train.', color: 'bg-orange-100 text-orange-600', dayIndex: 0 },
+          { time: '12:00', title: 'Hotel Pulitzer Check-in', cat: 'Stay', icon: 'Hotel', location: 'Prinsengracht 323, Amsterdam', desc: 'Check into the historic canal house hotel. Quick refresh before city exploration.', color: 'bg-sky-100 text-sky-600', dayIndex: 0 },
+          { time: '14:30', title: 'Anne Frank House', cat: 'Sights', icon: 'MapPin', location: 'Westermarkt 20, Amsterdam', desc: 'Self-guided tour with an audio guide through the Secret Annex.', color: 'bg-emerald-100 text-emerald-600', dayIndex: 0 },
+          { time: '18:30', title: 'Canal Cruise Dinner', cat: 'Food', icon: 'Utensils', location: 'Central Station Pier', desc: 'Scenic twilight cruise through the historic canals with a 3-course Dutch meal.', color: 'bg-amber-100 text-amber-600', dayIndex: 0 }
+        ];
+
+        for (const ev of initialEvents) {
+          await addDoc(collection(db, 'trips', tripId, 'events'), ev);
+        }
+        localStorage.setItem(`trip_init_${tripId}`, 'true');
+      }
+    };
+
+    if (user) seedInitialData();
+
+    const q = query(
+      collection(db, 'trips', tripId, 'events'),
+      where('dayIndex', '==', selectedDay)
+    );
+    
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const items = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      // Sort by time
+      items.sort((a: any, b: any) => a.time.localeCompare(b.time));
+      setEvents(items);
+      setLoading(false);
+    }, (error) => {
+      console.error("Firestore read error:", error);
+    });
+    
+    return () => unsubscribe();
+  }, [selectedDay]);
+
+  const handleAddEvent = async () => {
+    const title = prompt("Event Title:");
+    if (!title) return;
+    const time = prompt("Time (HH:mm):", "12:00");
+    if (!time) return;
+    const location = prompt("Location:");
+    const desc = prompt("Description:");
+    
+    try {
+      await addDoc(collection(db, 'trips', tripId, 'events'), {
+        title,
+        time,
+        location: location || '',
+        desc: desc || '',
+        dayIndex: selectedDay,
+        icon: 'MapPin', // Default
+        cat: 'Activity', // Default
+        color: 'bg-indigo-100 text-indigo-600' // Default
+      });
+    } catch (err) {
+      console.error("Add event error:", err);
+    }
+  };
+
+  const handleEditEvent = async (event: any) => {
+    const newTitle = prompt("Edit Title:", event.title);
+    if (newTitle === null) return;
+    
+    try {
+      const eventRef = doc(db, 'trips', tripId, 'events', event.id);
+      await updateDoc(eventRef, { title: newTitle });
+    } catch (err) {
+      console.error("Update event error:", err);
+    }
+  };
 
   return (
     <div id="schedule-tab" className="pb-32">
@@ -148,7 +253,7 @@ const ScheduleTab = () => {
       {/* Dashed Separator */}
       <div className="mx-6 border-t border-dashed border-gray-300 mt-4 mb-6 opacity-60" />
 
-      {/* Redesigned Journal Weather Card */}
+      {/* Weather Card Placeholder (keeping as is for UI consistency) */}
       <motion.div
         key={selectedDay}
         initial={{ opacity: 0, y: 10 }}
@@ -157,156 +262,94 @@ const ScheduleTab = () => {
       >
         <div className="py-4 px-4 flex items-center justify-between">
           <div className="flex gap-3 items-center">
-            <div className={`p-2.5 rounded-2xl ${
-              [
-                'bg-amber-50 text-amber-500', 
-                'bg-slate-50 text-slate-400', 
-                'bg-blue-50 text-blue-500', 
-                'bg-amber-50 text-amber-500',
-                'bg-slate-50 text-slate-400'
-              ][selectedDay] || 'bg-brand-green/10 text-brand-accent'
-            }`}>
-              {[
-                <Sun size={24} strokeWidth={2} />, 
-                <Cloud size={24} strokeWidth={2} />, 
-                <CloudRain size={24} strokeWidth={2} />, 
-                <CloudSun size={24} strokeWidth={2} />,
-                <Cloud size={24} strokeWidth={2} />
-              ][selectedDay]}
+            <div className={`p-2.5 rounded-2xl bg-amber-50 text-amber-500`}>
+              <Sun size={24} strokeWidth={2} />
             </div>
-            
             <div className="flex flex-col">
               <div className="flex items-center gap-2">
-                <span className="text-[17px] font-bold text-brand-dark font-display leading-tight">
-                  {['22°C', '18°C', '15°C', '23°C', '20°C'][selectedDay]}
-                </span>
+                <span className="text-[17px] font-bold text-brand-dark font-display leading-tight">22°C</span>
                 <div className="h-3 w-[1px] bg-brand-dark/10" />
-                <span className="text-[11px] font-bold uppercase tracking-wider text-brand-dark/40 font-display">
-                  {['Sunny', 'Cloudy', 'Rainy', 'Sunlight', 'Overcast'][selectedDay]}
-                </span>
+                <span className="text-[11px] font-bold uppercase tracking-wider text-brand-dark/40 font-display">Sunny</span>
               </div>
-              <p className="text-[11px] text-brand-dark/50 font-sans mt-0.5 italic">
-                {[
-                  'Perfect for canalside walking.',
-                  'A bit chilly, bring a scarf.',
-                  'Stay dry in museums today.',
-                  'Golden hour will be beautiful.',
-                  'Good day for indoor galleries.'
-                ][selectedDay]}
-              </p>
+              <p className="text-[11px] text-brand-dark/50 font-sans mt-0.5 italic">Perfect for travelling.</p>
             </div>
           </div>
-          
           <div className="flex flex-col items-end">
-            <span className="text-[9px] font-black uppercase tracking-widest text-brand-dark/20 font-display">
-              {['Amsterdam', 'Amsterdam', 'Brussels', 'Brugge', 'Cologne'][selectedDay]}
-            </span>
+             <span className="text-[9px] font-black uppercase tracking-widest text-brand-dark/20 font-display">EUROPE</span>
           </div>
         </div>
       </motion.div>
 
-      {/* Full-width Itinerary Section */}
+      {/* Itinerary Section */}
       <div className="px-4 space-y-4 pb-12 font-sans">
-        {[
-          { 
-            time: '09:30', 
-            title: 'AMS Schiphol Arrival', 
-            cat: 'Transport', 
-            Icon: Plane,
-            location: 'Schiphol Airport, Amsterdam',
-            desc: 'Terminal arrival and luggage collection. Transfer to city center via NS Train.',
-            color: 'bg-orange-100 text-orange-600'
-          },
-          { 
-            time: '12:00', 
-            title: 'Hotel Pulitzer Check-in', 
-            cat: 'Stay', 
-            Icon: Hotel,
-            location: 'Prinsengracht 323, Amsterdam',
-            desc: 'Check into the historic canal house hotel. Quick refresh before city exploration.',
-            color: 'bg-sky-100 text-sky-600'
-          },
-          { 
-            time: '14:30', 
-            title: 'Anne Frank House', 
-            cat: 'Sights', 
-            Icon: MapPin,
-            location: 'Westermarkt 20, Amsterdam',
-            desc: 'Self-guided tour with an audio guide through the Secret Annex.',
-            color: 'bg-emerald-100 text-emerald-600'
-          },
-          { 
-            time: '18:30', 
-            title: 'Canal Cruise Dinner', 
-            cat: 'Food', 
-            Icon: Utensils,
-            location: 'Central Station Pier',
-            desc: 'Scenic twilight cruise through the historic canals with a 3-course Dutch meal.',
-            color: 'bg-amber-100 text-amber-600'
-          },
-        ].map((item, i) => (
-          <motion.div
-            key={i}
-            initial={{ opacity: 0, y: 15 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: i * 0.1 }}
-            className="relative overflow-hidden w-full bg-white rounded-2xl shadow-sm border border-brand-green/10 transition-transform active:scale-[0.98]"
-          >
-            {/* Left accent line */}
-            <div className={`absolute left-0 top-0 bottom-0 w-1 ${item.color.split(' ')[1].replace('text-', 'bg-')}`} />
-            
-            <div className="py-4 pr-4 pl-5 flex flex-col gap-3">
-              {/* Top Meta Row */}
-              <div className="flex items-center gap-2">
-                <div className="px-2 h-[18px] flex items-center justify-center bg-gray-100 rounded-md">
-                  <span className="text-[10px] font-bold text-brand-dark/70 font-display leading-none">
-                    {item.time}
-                  </span>
-                </div>
-                <div className={`px-2 h-[18px] flex items-center justify-center rounded-md ${item.color}`}>
-                  <span className="text-[9px] font-bold uppercase tracking-wider font-display leading-none">
-                    {item.cat}
-                  </span>
-                </div>
-              </div>
+        {loading ? (
+          <p className="text-center py-10 text-xs text-brand-dark/20 font-bold">Loading schedule...</p>
+        ) : events.length === 0 ? (
+          <div className="text-center py-10 opacity-30">
+            <Sparkles className="mx-auto mb-2" size={24} />
+            <p className="text-xs font-bold uppercase tracking-widest">No events planned</p>
+          </div>
+        ) : (
+          events.map((item, i) => {
+            const Icon = iconMap[item.icon] || MapPin;
+            return (
+              <motion.div
+                key={item.id}
+                initial={{ opacity: 0, y: 15 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.05 }}
+                className="relative overflow-hidden w-full bg-white rounded-2xl shadow-sm border border-brand-green/10 transition-transform active:scale-[0.98]"
+              >
+                <div className={`absolute left-0 top-0 bottom-0 w-1 ${item.color?.split(' ')[1]?.replace('text-', 'bg-') || 'bg-brand-accent'}`} />
+                
+                <div className="py-4 pr-4 pl-5 flex flex-col gap-3">
+                  <div className="flex items-center gap-2">
+                    <div className="px-2 h-[18px] flex items-center justify-center bg-gray-100 rounded-md">
+                      <span className="text-[10px] font-bold text-brand-dark/70 font-display leading-none">{item.time}</span>
+                    </div>
+                    <div className={`px-2 h-[18px] flex items-center justify-center rounded-md ${item.color || 'bg-brand-green/10 text-brand-accent'}`}>
+                      <span className="text-[9px] font-bold uppercase tracking-wider font-display leading-none">{item.cat || 'Activity'}</span>
+                    </div>
+                  </div>
 
-              {/* Title Section */}
-              <div className="flex gap-3 items-start">
-                <div className={`flex-shrink-0 pt-0.5 ${item.color.split(' ')[1]}`}>
-                  <item.Icon size={20} strokeWidth={2.5} />
-                </div>
-                <div className="flex flex-col gap-1">
-                  <h3 className="text-[16px] font-bold text-brand-dark font-display leading-tight">
-                    {item.title}
-                  </h3>
-                  <div className="flex items-center gap-1 text-brand-dark/40 text-[10px] font-medium font-sans">
-                    <MapPin size={10} className="flex-shrink-0 opacity-60" />
-                    <span className="truncate">{item.location}</span>
+                  <div className="flex gap-3 items-start">
+                    <div className={`flex-shrink-0 pt-0.5 ${item.color?.split(' ')[1] || 'text-brand-accent'}`}>
+                      <Icon size={20} strokeWidth={2.5} />
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <h3 className="text-[16px] font-bold text-brand-dark font-display leading-tight">{item.title}</h3>
+                      {item.location && (
+                        <div className="flex items-center gap-1 text-brand-dark/40 text-[10px] font-medium font-sans">
+                          <MapPin size={10} className="flex-shrink-0 opacity-60" />
+                          <span className="truncate">{item.location}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {item.desc && (
+                    <div className="bg-gray-50/80 rounded-xl p-3 border border-gray-100/50">
+                      <p className="text-[11px] leading-relaxed text-brand-dark/60 font-sans italic">{item.desc}</p>
+                    </div>
+                  )}
+
+                  <div className="flex justify-end pt-1">
+                    <button 
+                      onClick={() => handleEditEvent(item)}
+                      className="flex items-center gap-1.5 text-brand-dark/30 hover:text-brand-accent transition-colors cursor-pointer group"
+                    >
+                      <Search size={10} className="group-hover:scale-110 transition-transform" />
+                      <span className="text-[10px] font-bold uppercase tracking-tighter font-display leading-none">Edit Details</span>
+                    </button>
                   </div>
                 </div>
-              </div>
-
-              {/* Description Box */}
-              <div className="bg-gray-50/80 rounded-xl p-3 border border-gray-100/50">
-                <p className="text-[11px] leading-relaxed text-brand-dark/60 font-sans italic">
-                  {item.desc}
-                </p>
-              </div>
-
-              {/* Action Link */}
-              <div className="flex justify-end pt-1">
-                <div className="flex items-center gap-1.5 text-brand-dark/30 hover:text-brand-accent transition-colors cursor-pointer group">
-                  <Search size={10} className="group-hover:scale-110 transition-transform" />
-                  <span className="text-[10px] font-bold uppercase tracking-tighter font-display leading-none">
-                    View Details
-                  </span>
-                </div>
-              </div>
-            </div>
-          </motion.div>
-        ))}
+              </motion.div>
+            );
+          })
+        )}
 
         <motion.button
+          onClick={handleAddEvent}
           whileTap={{ scale: 0.95 }}
           className="w-full flex items-center justify-center gap-2 py-4 bg-brand-green/10 border border-brand-green/30 border-dashed rounded-2xl text-brand-accent font-bold text-[10px] uppercase tracking-wider font-display mb-12"
         >
@@ -639,7 +682,18 @@ export default function App() {
     );
   }
 
-  // Not gated by login anymore, will be anonymous if not logged in
+  if (loading && !user) {
+    return (
+      <div className="min-h-screen bg-brand-beige flex items-center justify-center">
+        <motion.div 
+          animate={{ rotate: 360 }}
+          transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}
+          className="w-8 h-8 border-4 border-brand-green border-t-transparent rounded-full"
+        />
+      </div>
+    );
+  }
+
   const currentUser = user;
 
   const getTitle = () => {
@@ -685,7 +739,7 @@ export default function App() {
             exit={{ opacity: 0, x: -20 }}
             transition={{ duration: 0.2 }}
           >
-            {activeTab === 'schedule' && <ScheduleTab />}
+            {activeTab === 'schedule' && <ScheduleTab user={user!} />}
             {activeTab === 'bookings' && <BookingsTab />}
             {activeTab === 'expense' && <ExpenseTab />}
             {activeTab === 'journal' && <JournalTab />}

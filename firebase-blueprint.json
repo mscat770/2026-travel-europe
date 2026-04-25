@@ -2,136 +2,57 @@
   "entities": {
     "Trip": {
       "title": "Trip",
-      "description": "The main trip container",
+      "description": "A travel itinerary",
       "type": "object",
       "properties": {
-        "name": { "type": "string" },
+        "title": { "type": "string" },
+        "subtitle": { "type": "string" },
         "startDate": { "type": "string", "format": "date" },
         "endDate": { "type": "string", "format": "date" },
-        "destination": { "type": "string" },
-        "ownerId": { "type": "string" },
-        "members": { "type": "array", "items": { "type": "string" } },
-        "createdAt": { "type": "string", "format": "date-time" }
+        "ownerId": { "type": "string" }
       },
-      "required": ["name", "startDate", "endDate", "ownerId"]
+      "required": ["title", "ownerId"]
     },
-    "ScheduleItem": {
-      "title": "Schedule Item",
-      "description": "An activity in the daily schedule",
+    "Event": {
+      "title": "Event",
+      "description": "An event in the trip schedule",
       "type": "object",
       "properties": {
-        "tripId": { "type": "string" },
-        "date": { "type": "string", "format": "date" },
         "time": { "type": "string" },
         "title": { "type": "string" },
+        "cat": { "type": "string" },
         "location": { "type": "string" },
-        "category": { "type": "string", "enum": ["scenery", "food", "transport", "stay"] },
-        "notes": { "type": "string" },
-        "photos": { "type": "array", "items": { "type": "string" } },
-        "mapUrl": { "type": "string" },
-        "authorId": { "type": "string" },
-        "createdAt": { "type": "string", "format": "date-time" }
+        "desc": { "type": "string" },
+        "color": { "type": "string" },
+        "icon": { "type": "string" },
+        "dayIndex": { "type": "integer" }
       },
-      "required": ["tripId", "date", "title", "category", "authorId"]
-    },
-    "Booking": {
-      "title": "Booking",
-      "description": "Flight, stay, or ticket information",
-      "type": "object",
-      "properties": {
-        "tripId": { "type": "string" },
-        "type": { "type": "string", "enum": ["flight", "stay", "ticket"] },
-        "title": { "type": "string" },
-        "details": { "type": "object" },
-        "vouchers": { "type": "array", "items": { "type": "string" } },
-        "isPrivate": { "type": "boolean" },
-        "authorId": { "type": "string" }
-      },
-      "required": ["tripId", "type", "title", "authorId"]
-    },
-    "Expense": {
-      "title": "Expense",
-      "description": "A travel expense record",
-      "type": "object",
-      "properties": {
-        "tripId": { "type": "string" },
-        "amount": { "type": "number" },
-        "currency": { "type": "string" },
-        "category": { "type": "string" },
-        "payerId": { "type": "string" },
-        "splitBetween": { "type": "array", "items": { "type": "string" } },
-        "date": { "type": "string", "format": "date" },
-        "note": { "type": "string" }
-      },
-      "required": ["tripId", "amount", "currency", "payerId"]
-    },
-    "JournalEntry": {
-      "title": "Journal Entry",
-      "description": "A daily log with photos",
-      "type": "object",
-      "properties": {
-        "tripId": { "type": "string" },
-        "content": { "type": "string" },
-        "photos": { "type": "array", "items": { "type": "string" } },
-        "date": { "type": "string", "format": "date" },
-        "authorId": { "type": "string" },
-        "createdAt": { "type": "string", "format": "date-time" }
-      },
-      "required": ["tripId", "content", "authorId"]
-    },
-    "Member": {
-      "title": "Member",
-      "description": "User profile in a trip",
-      "type": "object",
-      "properties": {
-        "uid": { "type": "string" },
-        "name": { "type": "string" },
-        "avatar": { "type": "string" },
-        "email": { "type": "string" }
-      },
-      "required": ["uid", "name"]
+      "required": ["time", "title", "dayIndex"]
     },
     "Todo": {
       "title": "Todo",
-      "description": "A planning list item",
+      "description": "A packing item or task",
       "type": "object",
       "properties": {
-        "tripId": { "type": "string" },
-        "type": { "type": "string", "enum": ["todo", "packing", "shopping"] },
         "text": { "type": "string" },
-        "completed": { "type": "boolean" }
+        "completed": { "type": "boolean" },
+        "authorId": { "type": "string" }
       },
-      "required": ["tripId", "type", "text"]
+      "required": ["text", "authorId"]
     }
   },
   "firestore": {
-    "/trips/{tripId}": {
+    "trips/{tripId}": {
       "schema": "Trip",
-      "description": "Main trip data"
+      "description": "Main trip document"
     },
-    "/trips/{tripId}/schedule": {
-      "schema": "ScheduleItem",
-      "description": "Daily schedule for the trip"
+    "trips/{tripId}/events/{eventId}": {
+      "schema": "Event",
+      "description": "Schedule events for the trip"
     },
-    "/trips/{tripId}/bookings": {
-      "schema": "Booking",
-      "description": "Bookings for the trip"
-    },
-    "/trips/{tripId}/expenses": {
-      "schema": "Expense",
-      "description": "Expenses for the trip"
-    },
-    "/trips/{tripId}/journal": {
-      "schema": "JournalEntry",
-      "description": "Journal entries for the trip"
-    },
-    "/trips/{tripId}/todos": {
+    "trips/{tripId}/todos/{todoId}": {
       "schema": "Todo",
-      "description": "Planning lists for the trip"
-    },
-    "/users/{userId}": {
-      "schema": "Member",
-      "description": "User profile data"
+      "description": "Planning tasks for the trip"
     }
   }
 }
