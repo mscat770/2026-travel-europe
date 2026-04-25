@@ -1,7 +1,7 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
-import { getFirestore, doc, collection, query, where, onSnapshot, addDoc, updateDoc, getDocs, serverTimestamp } from 'firebase/firestore';
-import { getStorage } from 'firebase/storage';
+import { getFirestore, doc, collection, query, where, onSnapshot, addDoc, updateDoc, getDocs, deleteDoc, serverTimestamp } from 'firebase/firestore';
+import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 
 const firebaseConfig = {
   apiKey: 'AIzaSyACbl1m5AvjaK6-lzOHQaPNhi1B2K3dYsE',
@@ -23,6 +23,12 @@ export const storage = getStorage(app);
 
 const TRIP_ID = "europe-2026-trip";
 
+export const uploadFile = async (file: File): Promise<string> => {
+  const fileRef = ref(storage, `travel_files/${Date.now()}_${file.name}`);
+  await uploadBytes(fileRef, file);
+  return await getDownloadURL(fileRef);
+};
+
 export const addEvent = async (eventData: any) => {
   const collectionRef = collection(db, 'trips', TRIP_ID, 'events');
   return await addDoc(collectionRef, {
@@ -39,6 +45,11 @@ export const updateEvent = async (eventId: string, eventData: any) => {
     ...eventData,
     updatedAt: serverTimestamp(),
   });
+};
+
+export const deleteEvent = async (eventId: string) => {
+  const eventRef = doc(db, 'trips', TRIP_ID, 'events', eventId);
+  await deleteDoc(eventRef);
 };
 
 export const subscribeToEvents = (dayIndex: number, callback: (events: any[]) => void) => {

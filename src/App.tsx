@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Calendar, 
@@ -21,13 +21,17 @@ import {
   Plane,
   Hotel,
   Utensils,
-  Search
+  Search,
+  Pencil,
+  Trash2,
+  Paperclip
 } from 'lucide-react';
 import { 
   auth, 
   db, 
   addEvent, 
   updateEvent, 
+  deleteEvent,
   subscribeToEvents, 
   seedEventsIfEmpty,
   clearAllEvents
@@ -40,6 +44,12 @@ import {
   signOut
 } from 'firebase/auth';
 import { collection, query, where, onSnapshot, doc, getDoc, updateDoc, addDoc } from 'firebase/firestore';
+
+declare global {
+  interface Window {
+    google: any;
+  }
+}
 
 // --- Types ---
 type Tab = 'schedule' | 'bookings' | 'expense' | 'journal' | 'planning' | 'members';
@@ -121,6 +131,96 @@ const ScheduleTab = ({ user }: { user: User }) => {
   const [events, setEvents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedDay, setSelectedDay] = useState(0);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isDetailOpen, setIsDetailOpen] = useState(false);
+  const [selectedEvent, setSelectedEvent] = useState<any>(null);
+  const [editingEvent, setEditingEvent] = useState<any>(null);
+  const locationInputRef = useRef<HTMLInputElement>(null);
+  const autocompleteRef = useRef<any>(null);
+  
+  // Modal State
+  const [formData, setFormData] = useState({
+    title: '',
+    time: '12:00',
+    location: '',
+    desc: '',
+    cat: 'OTHER',
+    link: ''
+  });
+
+  const categories = [
+    { label: 'TRANSPORT', value: 'TRANSPORT', icon: 'Plane' },
+    { label: 'FOOD', value: 'FOOD', icon: 'Utensils' },
+    { label: 'STAY', value: 'STAY', icon: 'Hotel' },
+    { label: 'SIGHTSEEING', value: 'SIGHTSEEING', icon: 'Camera' },
+    { label: 'SHOPPING', value: 'SHOPPING', icon: 'ShoppingCart' },
+    { label: 'OTHER', value: 'OTHER', icon: 'MapPin' },
+  ];
+
+  const handleOpenAdd = () => {
+    setEditingEvent(null);
+    setFormData({
+      title: '',
+      time: '12:00',
+      location: '',
+      desc: '',
+      cat: 'OTHER',
+      link: ''
+    });
+    setIsModalOpen(true);
+  };
+
+  const handleOpenEdit = (event: any) => {
+    setEditingEvent(event);
+    setFormData({
+      title: event.title || '',
+      time: event.time || '12:00',
+      location: event.location || '',
+      desc: event.desc || '',
+      cat: event.cat || 'OTHER',
+      link: event.link || ''
+    });
+    setIsModalOpen(true);
+  };
+
+  const handleDeleteEvent = async (eventId: string) => {
+    if (window.confirm('確定要刪除這筆行程嗎？')) {
+      try {
+        await deleteEvent(eventId);
+      } catch (err) {
+        console.error(err);
+        alert('刪除失敗');
+      }
+    }
+  };
+
+  const handleSave = async (e: any) => {
+    e.preventDefault();
+    try {
+      const icon = categories.find(c => c.value === formData.cat)?.icon || 'MapPin';
+      const eventPayload = {
+        ...formData,
+        dayIndex: selectedDay,
+        icon,
+        color: formData.cat === 'TRANSPORT' ? 'bg-orange-100 text-orange-600' :
+               formData.cat === 'FOOD' ? 'bg-amber-100 text-amber-600' :
+               formData.cat === 'STAY' ? 'bg-sky-100 text-sky-600' :
+               formData.cat === 'SIGHTSEEING' ? 'bg-emerald-100 text-emerald-600' :
+               formData.cat === 'SHOPPING' ? 'bg-pink-100 text-pink-600' :
+               'bg-indigo-100 text-indigo-600'
+      };
+
+      if (editingEvent) {
+        await updateEvent(editingEvent.id, eventPayload);
+      } else {
+        await addEvent(eventPayload);
+      }
+      setIsModalOpen(false);
+    } catch (err) {
+      console.error(err);
+      alert('Error saving event.');
+    }
+  };
 
   // Map strings to Lucide components
   const iconMap: Record<string, any> = {
@@ -129,7 +229,7 @@ const ScheduleTab = ({ user }: { user: User }) => {
     'MapPin': MapPin,
     'Utensils': Utensils,
     'Camera': Camera,
-    'ShoppingCart': Search // Default for now
+    'ShoppingCart': Search
   };
 
   // Generate dates from May 21 to June 6
@@ -163,43 +263,48 @@ const ScheduleTab = ({ user }: { user: User }) => {
     return () => unsubscribe();
   }, [selectedDay]);
 
-  const handleAddEvent = async () => {
-    const title = prompt("Event Title:");
-    if (!title) return;
-    const time = prompt("Time (HH:mm):", "12:00");
-    if (!time) return;
-    const location = prompt("Location:");
-    const desc = prompt("Description:");
-    const category = prompt("Category (Activity, Food, Transport, Stay):", "Activity");
-    
-    try {
-      await addEvent({ 
-        title, 
-        time,
-        location: location || '',
-        desc: desc || '',
-        dayIndex: selectedDay,
-        icon: 'MapPin',
-        cat: category || 'Activity',
-        color: 'bg-indigo-100 text-indigo-600'
-      });
-      alert('Event added successfully!');
-    } catch (err) {
-      console.error(err);
-      alert('Error adding event.');
-    }
-  };
+  useEffect(() => {
+    if (isModalOpen && locationInputRef.current) {
+      // Small delay to ensure the modal animation is somewhat stable or the element is fully in DOM
+      const timer = setTimeout(() => {
+        if (!window.google || !window.google.maps || !window.google.maps.places) {
+          console.warn("Google Maps API not loaded properly");
+          return;
+        }
 
-  const handleEditEvent = async (event: any) => {
-    const newTitle = prompt("Edit Title:", event.title);
-    if (newTitle === null) return;
-    
-    try {
-      await updateEvent(event.id, { title: newTitle });
-    } catch (err) {
-      alert("Failed to update event.");
+        autocompleteRef.current = new window.google.maps.places.Autocomplete(locationInputRef.current, {
+          types: ['geocode', 'establishment'],
+        });
+
+        autocompleteRef.current.addListener('place_changed', () => {
+          const place = autocompleteRef.current.getPlace();
+          if (place.name || place.formatted_address) {
+            setFormData(prev => ({
+              ...prev,
+              location: place.formatted_address || place.name
+            }));
+          }
+        });
+
+        // Prevent form submission on Enter
+        const handleKeyDown = (e: KeyboardEvent) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+          }
+        };
+        locationInputRef.current?.addEventListener('keydown', handleKeyDown);
+
+        return () => {
+          locationInputRef.current?.removeEventListener('keydown', handleKeyDown);
+          if (window.google && window.google.maps && window.google.maps.event) {
+            window.google.maps.event.clearInstanceListeners(autocompleteRef.current);
+          }
+        };
+      }, 300);
+
+      return () => clearTimeout(timer);
     }
-  };
+  }, [isModalOpen]);
 
   return (
     <div id="schedule-tab" className="pb-32">
@@ -271,40 +376,56 @@ const ScheduleTab = ({ user }: { user: User }) => {
             return (
               <motion.div
                 key={item.id}
-                initial={{ opacity: 0, y: 15 }}
+                initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: i * 0.05 }}
-                className="relative overflow-hidden w-full bg-white rounded-2xl shadow-sm border border-brand-green/10 transition-transform active:scale-[0.98]"
+                whileTap={{ scale: 0.97 }}
+                transition={{ delay: i * 0.03 }}
+                className="relative overflow-hidden w-full bg-white rounded-[1.5rem] shadow-sm border border-brand-green/10 transition-all hover:shadow-md cursor-pointer active:shadow-inner"
+                onClick={() => {
+                  setSelectedEvent(item);
+                  setIsDetailOpen(true);
+                }}
               >
                 <div className={`absolute left-0 top-0 bottom-0 w-1 ${item.color?.split(' ')[1]?.replace('text-', 'bg-') || 'bg-brand-accent'}`} />
                 
                 <div className="py-4 pr-4 pl-5 flex flex-col gap-3">
-                  <div className="flex items-center gap-2">
-                    <div className="px-2 h-[18px] flex items-center justify-center bg-gray-100 rounded-md">
-                      <span className="text-[10px] font-bold text-brand-dark/70 font-display leading-none">{item.time}</span>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className="px-2 h-5 flex items-center justify-center bg-gray-50 rounded-lg">
+                        <Clock size={10} className="text-brand-dark/30 mr-1" />
+                        <span className="text-[10px] font-bold text-brand-dark/70 font-display leading-none">{item.time}</span>
+                      </div>
+                      <div className={`px-2 h-5 flex items-center justify-center rounded-lg border border-current/10 ${item.color || 'bg-brand-green/10 text-brand-accent'}`}>
+                        <span className="text-[9px] font-bold uppercase tracking-wider font-display leading-none">{item.cat || 'Activity'}</span>
+                      </div>
                     </div>
-                    <div className={`px-2 h-[18px] flex items-center justify-center rounded-md ${item.color || 'bg-brand-green/10 text-brand-accent'}`}>
-                      <span className="text-[9px] font-bold uppercase tracking-wider font-display leading-none">{item.cat || 'Activity'}</span>
+                    <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
+                      <button 
+                        onClick={() => handleOpenEdit(item)}
+                        className="text-brand-dark/15 hover:text-brand-accent transition-all p-1.5 hover:bg-brand-accent/5 rounded-lg"
+                        title="Edit"
+                      >
+                        <Pencil size={12} />
+                      </button>
+                      <button 
+                        onClick={() => handleDeleteEvent(item.id)}
+                        className="text-brand-dark/15 hover:text-red-400 transition-all p-1.5 hover:bg-red-50 rounded-lg"
+                        title="Delete"
+                      >
+                        <Trash2 size={12} />
+                      </button>
                     </div>
                   </div>
 
                   <div className="flex gap-3 items-start">
-                    <div className={`flex-shrink-0 pt-0.5 ${item.color?.split(' ')[1] || 'text-brand-accent'}`}>
+                    <div className={`flex-shrink-0 pt-0.5 ${item.color?.split(' ')[1] || 'text-brand-accent'} opacity-80`}>
                       <Icon size={20} strokeWidth={2.5} />
                     </div>
-                    <div className="flex flex-col gap-1">
-                      <h3 className="text-[16px] font-bold text-brand-dark font-display leading-tight">{item.title}</h3>
+                    <div className="flex flex-col gap-1 min-w-0">
+                      <h3 className="text-base font-bold text-brand-dark font-display leading-tight truncate">{item.title}</h3>
                       {item.location && (
                         <div className="flex items-center gap-1 text-brand-dark/40 text-[10px] font-medium font-sans">
-                          <a 
-                            href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(item.location)}`}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="cursor-pointer hover:text-brand-accent transition-colors"
-                            title="Open in Google Maps"
-                          >
-                            <MapPin size={10} className="flex-shrink-0 opacity-60" />
-                          </a>
+                          <MapPin size={10} className="flex-shrink-0 opacity-40" />
                           <span className="truncate">{item.location}</span>
                         </div>
                       )}
@@ -312,20 +433,10 @@ const ScheduleTab = ({ user }: { user: User }) => {
                   </div>
 
                   {item.desc && (
-                    <div className="bg-gray-50/80 rounded-xl p-3 border border-gray-100/50">
-                      <p className="text-[11px] leading-relaxed text-brand-dark/60 font-sans italic">{item.desc}</p>
+                    <div className="bg-gray-50/30 rounded-xl px-3 py-2 border border-gray-100/50">
+                      <p className="text-[10px] leading-relaxed text-brand-dark/40 font-sans italic line-clamp-1">{item.desc}</p>
                     </div>
                   )}
-
-                  <div className="flex justify-end pt-1">
-                    <button 
-                      onClick={() => handleEditEvent(item)}
-                      className="flex items-center gap-1.5 text-brand-dark/30 hover:text-brand-accent transition-colors cursor-pointer group"
-                    >
-                      <Search size={10} className="group-hover:scale-110 transition-transform" />
-                      <span className="text-[10px] font-bold uppercase tracking-tighter font-display leading-none">Edit Details</span>
-                    </button>
-                  </div>
                 </div>
               </motion.div>
             );
@@ -333,7 +444,7 @@ const ScheduleTab = ({ user }: { user: User }) => {
         )}
 
         <motion.button
-          onClick={handleAddEvent}
+          onClick={handleOpenAdd}
           whileTap={{ scale: 0.95 }}
           className="w-full flex items-center justify-center gap-2 py-4 bg-brand-green/10 border border-brand-green/30 border-dashed rounded-2xl text-brand-accent font-bold text-[10px] uppercase tracking-wider font-display mb-12"
         >
@@ -341,6 +452,205 @@ const ScheduleTab = ({ user }: { user: User }) => {
           Add Event
         </motion.button>
       </div>
+
+      {/* Event Modal */}
+      <AnimatePresence>
+        {isModalOpen && (
+          <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsModalOpen(false)}
+              className="absolute inset-0 bg-brand-dark/40 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ y: "100%" }}
+              animate={{ y: 0 }}
+              exit={{ y: "100%" }}
+              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+              className="relative w-full max-w-md bg-white rounded-t-[2.5rem] sm:rounded-[2.5rem] p-8 shadow-2xl overflow-hidden"
+            >
+              <div className="w-12 h-1 bg-brand-dark/10 rounded-full mx-auto mb-6 sm:hidden" />
+              
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-xl font-bold font-display text-brand-dark">
+                  {editingEvent ? 'Edit Event' : 'Add New Event'}
+                </h2>
+                <button 
+                  onClick={() => setIsModalOpen(false)}
+                  className="text-brand-dark/30 hover:text-brand-dark transition-colors"
+                >
+                  <Plus size={24} className="rotate-45" />
+                </button>
+              </div>
+
+              <form onSubmit={handleSave} className="space-y-4">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold uppercase tracking-widest text-brand-dark/40 ml-1">Title</label>
+                  <input
+                    required
+                    type="text"
+                    value={formData.title}
+                    onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                    className="w-full px-4 py-3 bg-brand-beige/50 rounded-xl border border-brand-green/20 focus:outline-none focus:border-brand-accent font-sans text-sm"
+                    placeholder="E.g. Amsterdam Canal Cruise"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold uppercase tracking-widest text-brand-dark/40 ml-1">Time</label>
+                    <input
+                      required
+                      type="time"
+                      value={formData.time}
+                      onChange={(e) => setFormData({ ...formData, time: e.target.value })}
+                      className="w-full px-4 py-3 bg-brand-beige/50 rounded-xl border border-brand-green/20 focus:outline-none focus:border-brand-accent font-sans text-sm"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold uppercase tracking-widest text-brand-dark/40 ml-1">Category</label>
+                    <select
+                      value={formData.cat}
+                      onChange={(e) => setFormData({ ...formData, cat: e.target.value })}
+                      className="w-full px-4 py-3 bg-brand-beige/50 rounded-xl border border-brand-green/20 focus:outline-none focus:border-brand-accent font-sans text-sm appearance-none"
+                    >
+                      {categories.map(cat => (
+                        <option key={cat.value} value={cat.value}>{cat.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold uppercase tracking-widest text-brand-dark/40 ml-1">Location</label>
+                  <input
+                    ref={locationInputRef}
+                    type="text"
+                    value={formData.location}
+                    onChange={(e) => setFormData({ ...formData, location: e.target.value })}
+                    className="w-full px-4 py-3 bg-brand-beige/50 rounded-xl border border-brand-green/20 focus:outline-none focus:border-brand-accent font-sans text-sm"
+                    placeholder="Google Maps location"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold uppercase tracking-widest text-brand-dark/40 ml-1">Notes</label>
+                  <textarea
+                    rows={3}
+                    value={formData.desc}
+                    onChange={(e) => setFormData({ ...formData, desc: e.target.value })}
+                    className="w-full px-4 py-3 bg-brand-beige/50 rounded-xl border border-brand-green/20 focus:outline-none focus:border-brand-accent font-sans text-sm resize-none"
+                    placeholder="Any extra details..."
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold uppercase tracking-widest text-brand-dark/40 ml-1">Attachment Link (URL)</label>
+                  <input
+                    type="url"
+                    value={formData.link}
+                    onChange={(e) => setFormData({ ...formData, link: e.target.value })}
+                    className="w-full px-4 py-3 bg-brand-beige/50 rounded-xl border border-brand-green/20 focus:outline-none focus:border-brand-accent font-sans text-sm"
+                    placeholder="E.g. Google Drive link"
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  className="w-full py-4 bg-brand-accent text-white rounded-2xl font-bold font-display uppercase tracking-wider shadow-lg shadow-brand-accent/20 hover:scale-[1.02] transition-all mt-4"
+                >
+                  {editingEvent ? 'Save Changes' : 'Create Event'}
+                </button>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Detail View Modal */}
+      <AnimatePresence>
+        {isDetailOpen && selectedEvent && (
+          <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsDetailOpen(false)}
+              className="absolute inset-0 bg-brand-dark/60 backdrop-blur-md"
+            />
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="relative w-full max-w-lg bg-white rounded-[2.5rem] shadow-2xl overflow-hidden max-h-[90vh] flex flex-col"
+            >
+              <div className={`h-24 w-full relative ${selectedEvent.color || 'bg-brand-green/10'}`}>
+                <button 
+                  onClick={() => setIsDetailOpen(false)}
+                  className="absolute top-6 right-6 w-10 h-10 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center text-white hover:bg-white/40 transition-colors z-10"
+                >
+                  <Plus size={24} className="rotate-45" />
+                </button>
+                <div className="absolute -bottom-6 left-8 w-16 h-16 bg-white rounded-2xl shadow-lg flex items-center justify-center">
+                  {(() => {
+                    const Icon = iconMap[selectedEvent.icon] || MapPin;
+                    return <Icon size={32} className={selectedEvent.color?.split(' ')[1] || 'text-brand-accent'} />;
+                  })()}
+                </div>
+              </div>
+
+              <div className="p-8 pt-10 overflow-y-auto no-scrollbar flex-1">
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="px-2 py-0.5 bg-gray-100 rounded-md text-[10px] font-bold text-brand-dark/50">
+                    {selectedEvent.time}
+                  </div>
+                  <div className={`px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider ${selectedEvent.color}`}>
+                    {selectedEvent.cat}
+                  </div>
+                </div>
+                
+                <h2 className="text-2xl font-bold font-display text-brand-dark mb-4">{selectedEvent.title}</h2>
+                
+                {selectedEvent.location && (
+                  <a 
+                    href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(selectedEvent.location)}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex items-center gap-2 text-brand-accent p-3 bg-brand-accent/5 rounded-xl border border-brand-accent/10 mb-6 transition-colors hover:bg-brand-accent/10"
+                  >
+                    <MapPin size={16} />
+                    <span className="text-xs font-bold font-sans">{selectedEvent.location}</span>
+                  </a>
+                )}
+
+                {selectedEvent.desc && (
+                  <div className="mb-8">
+                    <label className="text-[10px] font-bold uppercase tracking-widest text-brand-dark/20 block mb-2">Detailed Notes</label>
+                    <p className="text-sm leading-relaxed text-brand-dark/70 font-sans">{selectedEvent.desc}</p>
+                  </div>
+                )}
+
+                {selectedEvent.link && (
+                  <div className="mt-8">
+                    <label className="text-[10px] font-bold uppercase tracking-widest text-brand-dark/20 block mb-3">Attachment</label>
+                    <a 
+                      href={selectedEvent.link}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="flex items-center justify-center gap-2 w-full py-4 bg-brand-beige/50 rounded-2xl border border-brand-green/20 text-brand-accent font-bold font-display uppercase tracking-wider hover:bg-brand-accent hover:text-white transition-all shadow-sm"
+                    >
+                      <Paperclip size={16} />
+                      View Attachment
+                    </a>
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };
@@ -646,9 +956,6 @@ export default function App() {
     const unsubscribe = onAuthStateChanged(auth, async (u) => {
       if (u) {
         setUser(u);
-        const { clearAllEvents } = await import('./lib/firebase');
-        // Run once to satisfy request to clear data
-        await clearAllEvents();
       } else {
         // Transparent login
         try {
