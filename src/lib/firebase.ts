@@ -4,7 +4,7 @@ import { getFirestore, doc, collection, query, where, onSnapshot, addDoc, update
 import { getStorage } from 'firebase/storage';
 
 const firebaseConfig = {
-  apiKey: 'AIzaSyApICQ7VyaOwUPNKGHGKHtoC1aRfM1SlsQ',
+  apiKey: 'AIzaSyACbl1m5AvjaK6-lzOHQaPNhi1B2K3dYsE',
   authDomain: 'gen-lang-client-0972957793.firebaseapp.com',
   projectId: 'gen-lang-client-0972957793',
   storageBucket: 'gen-lang-client-0972957793.firebasestorage.app',
@@ -13,7 +13,8 @@ const firebaseConfig = {
   measurementId: '',
 };
 
-const databaseId = 'ai-studio-3ae5dfac-ad17-4b4e-af19-ba1c6c13ffca';
+const databaseId = '(default)';
+console.log("[Firebase] Switching to (default) Database ID for testing rules.");
 
 const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app, databaseId);
@@ -53,32 +54,26 @@ export const subscribeToEvents = (dayIndex: number, callback: (events: any[]) =>
     }));
     items.sort((a: any, b: any) => (a.time || '').localeCompare(b.time || ''));
     callback(items);
+  }, (error) => {
+    console.error("Firestore Snapshot Error at trips/" + TRIP_ID + "/events:", error);
   });
 };
 
-export const seedEventsIfEmpty = async () => {
+export const clearAllEvents = async () => {
   const path = `trips/${TRIP_ID}/events`;
   try {
     const snapshot = await getDocs(collection(db, path));
-    if (snapshot.empty) {
-      const initialEvents = [
-        { time: '09:30', title: 'AMS Schiphol Arrival', cat: 'Transport', icon: 'Plane', location: 'Schiphol Airport, Amsterdam', desc: 'Terminal arrival and luggage collection. Transfer to city center via NS Train.', color: 'bg-orange-100 text-orange-600', dayIndex: 0 },
-        { time: '12:00', title: 'Hotel Pulitzer Check-in', cat: 'Stay', icon: 'Hotel', location: 'Prinsengracht 323, Amsterdam', desc: 'Check into the historic canal house hotel. Quick refresh before city exploration.', color: 'bg-sky-100 text-sky-600', dayIndex: 0 },
-        { time: '14:30', title: 'Anne Frank House', cat: 'Sights', icon: 'MapPin', location: 'Westermarkt 20, Amsterdam', desc: 'Self-guided tour with an audio guide through the Secret Annex.', color: 'bg-emerald-100 text-emerald-600', dayIndex: 0 },
-        { time: '18:30', title: 'Canal Cruise Dinner', cat: 'Food', icon: 'Utensils', location: 'Central Station Pier', desc: 'Scenic twilight cruise through the historic canals with a 3-course Dutch meal.', color: 'bg-amber-100 text-amber-600', dayIndex: 0 }
-      ];
-
-      for (const ev of initialEvents) {
-        await addDoc(collection(db, path), {
-          ...ev,
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp()
-        });
-      }
-      return true;
-    }
+    const deletePromises = snapshot.docs.map(doc => deleteDoc(doc.ref));
+    await Promise.all(deletePromises);
+    console.log("[Firebase] All events cleared.");
+    return true;
   } catch (error) {
-    // Silent
+    console.error("[Firebase] Error clearing events:", error);
+    return false;
   }
+};
+
+export const seedEventsIfEmpty = async () => {
+  // User requested clean start, so we no longer seed example data.
   return false;
 };

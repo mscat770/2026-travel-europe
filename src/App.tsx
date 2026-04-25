@@ -29,7 +29,8 @@ import {
   addEvent, 
   updateEvent, 
   subscribeToEvents, 
-  seedEventsIfEmpty 
+  seedEventsIfEmpty,
+  clearAllEvents
 } from './lib/firebase';
 import { 
   signInWithPopup, 
@@ -131,11 +132,11 @@ const ScheduleTab = ({ user }: { user: User }) => {
     'ShoppingCart': Search // Default for now
   };
 
-  // Generate dates from May 21 to June 5
+  // Generate dates from May 21 to June 6
   const generateDates = () => {
     const dates = [];
     const start = new Date(2026, 4, 21); // May 21
-    const end = new Date(2026, 5, 5);    // June 5
+    const end = new Date(2026, 5, 6);    // June 6
     let current = new Date(start);
     while (current <= end) {
       dates.push(new Date(current));
@@ -163,11 +164,30 @@ const ScheduleTab = ({ user }: { user: User }) => {
   }, [selectedDay]);
 
   const handleAddEvent = async () => {
-    await addDoc(collection(db, 'events'), { 
-      title: 'Test', 
-      date: '2026-05-21'
-    });
-    alert('Event added!');
+    const title = prompt("Event Title:");
+    if (!title) return;
+    const time = prompt("Time (HH:mm):", "12:00");
+    if (!time) return;
+    const location = prompt("Location:");
+    const desc = prompt("Description:");
+    const category = prompt("Category (Activity, Food, Transport, Stay):", "Activity");
+    
+    try {
+      await addEvent({ 
+        title, 
+        time,
+        location: location || '',
+        desc: desc || '',
+        dayIndex: selectedDay,
+        icon: 'MapPin',
+        cat: category || 'Activity',
+        color: 'bg-indigo-100 text-indigo-600'
+      });
+      alert('Event added successfully!');
+    } catch (err) {
+      console.error(err);
+      alert('Error adding event.');
+    }
   };
 
   const handleEditEvent = async (event: any) => {
@@ -276,7 +296,15 @@ const ScheduleTab = ({ user }: { user: User }) => {
                       <h3 className="text-[16px] font-bold text-brand-dark font-display leading-tight">{item.title}</h3>
                       {item.location && (
                         <div className="flex items-center gap-1 text-brand-dark/40 text-[10px] font-medium font-sans">
-                          <MapPin size={10} className="flex-shrink-0 opacity-60" />
+                          <a 
+                            href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(item.location)}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="cursor-pointer hover:text-brand-accent transition-colors"
+                            title="Open in Google Maps"
+                          >
+                            <MapPin size={10} className="flex-shrink-0 opacity-60" />
+                          </a>
                           <span className="truncate">{item.location}</span>
                         </div>
                       )}
@@ -387,7 +415,15 @@ const BookingsTab = () => {
                 <h3 className="font-bold">Hotel Pulitzer Amsterdam</h3>
                 <p className="text-xs text-brand-dark/60 mt-1">Check-in: 15:00</p>
                 <div className="flex items-center gap-1 mt-2 text-brand-accent text-xs font-bold">
-                  <MapPin size={12} />
+                  <a 
+                    href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent("Prinsengracht 323, Amsterdam")}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="cursor-pointer hover:opacity-80 transition-opacity"
+                    title="Open in Google Maps"
+                  >
+                    <MapPin size={12} />
+                  </a>
                   <span>Prinsengracht 323, Amsterdam</span>
                 </div>
               </div>
@@ -610,6 +646,9 @@ export default function App() {
     const unsubscribe = onAuthStateChanged(auth, async (u) => {
       if (u) {
         setUser(u);
+        const { clearAllEvents } = await import('./lib/firebase');
+        // Run once to satisfy request to clear data
+        await clearAllEvents();
       } else {
         // Transparent login
         try {
