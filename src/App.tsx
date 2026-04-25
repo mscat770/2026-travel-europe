@@ -123,7 +123,7 @@ const ScheduleTab = () => {
   return (
     <div id="schedule-tab" className="pb-32">
       {/* Date Picker */}
-      <div className="flex gap-2 overflow-x-auto px-6 pt-2 pb-3 no-scrollbar">
+      <div className="flex gap-2 overflow-x-auto px-6 pt-2 pb-0 no-scrollbar">
         {days.map((date, idx) => (
           <motion.button
             key={idx}
@@ -144,6 +144,9 @@ const ScheduleTab = () => {
           </motion.button>
         ))}
       </div>
+
+      {/* Dashed Separator */}
+      <div className="mx-6 border-t border-dashed border-gray-300 mt-4 mb-6 opacity-60" />
 
       {/* Redesigned Journal Weather Card */}
       <motion.div
