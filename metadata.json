@@ -1,0 +1,6 @@
+{
+  "name": "TabiNote - 旅遊手帳",
+  "description": "一站式日系手繪風旅遊規劃 App，包含行程、預訂、記帳、日誌與成員管理功能。提供離線支持與即時數據同步。",
+  "requestFramePermissions": ["camera", "microphone", "geolocation"],
+  "majorCapabilities": []
+}

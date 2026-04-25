@@ -1,0 +1,47 @@
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Noto Sans TC", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Noto Sans TC", sans-serif;
+  
+  --color-brand-beige: #F7F4EB;
+  --color-brand-green: #E0E5D5;
+  --color-brand-dark: #333333;
+  --color-brand-accent: #9FB18F;
+  
+  --shadow-soft: 4px 4px 0px #E0E5D5;
+  --shadow-card: 0 4px 20px rgba(0, 0, 0, 0.05);
+}
+
+@layer base {
+  body {
+    @apply bg-brand-beige text-brand-dark font-sans;
+    background-image: radial-gradient(#dcdcdc 0.5px, transparent 0.5px);
+    background-size: 20px 20px;
+  }
+}
+
+@layer components {
+  .journal-card {
+    @apply bg-white rounded-3xl p-4 transition-all duration-200;
+    box-shadow: var(--shadow-soft);
+  }
+  
+  .journal-card:active {
+    @apply scale-[0.98];
+    box-shadow: 2px 2px 0px #E0E5D5;
+  }
+
+  .nav-item-active {
+    @apply text-brand-accent scale-110;
+  }
+
+  /* Custom board pass look */
+  .boarding-pass {
+    @apply bg-white rounded-2xl overflow-hidden shadow-lg relative;
+    background-image: radial-gradient(circle at 0 50%, transparent 10px, white 10px),
+                      radial-gradient(circle at 100% 50%, transparent 10px, white 10px);
+  }
+}
+
