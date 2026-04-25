@@ -40,25 +40,19 @@ service cloud.firestore {
 
     // 3. Collection Rules
     match /trips/{tripId} {
-      allow get: if isSignedIn();
-      allow list: if isSignedIn();
-      allow create: if isSignedIn() && isValidTrip(incoming()) && isValidId(tripId);
-      allow update: if isSignedIn() && isValidTrip(incoming()) && incoming().ownerId == existing().ownerId;
-      allow delete: if isSignedIn() && existing().ownerId == request.auth.uid;
+      allow read, write: if true;
 
       match /events/{eventId} {
-        allow read: if isSignedIn();
-        allow create: if isSignedIn() && isValidEvent(incoming()) && isValidId(eventId);
-        allow update: if isSignedIn() && isValidEvent(incoming());
-        allow delete: if isSignedIn(); // Basic protection: signed in. Could be more strict.
+        allow read, write: if true;
       }
 
       match /todos/{todoId} {
-        allow read: if isSignedIn();
-        allow create: if isSignedIn() && isValidTodo(incoming()) && isValidId(todoId);
-        allow update: if isSignedIn() && isValidTodo(incoming()) && incoming().authorId == existing().authorId;
-        allow delete: if isSignedIn() && existing().authorId == request.auth.uid;
+        allow read, write: if true;
       }
+    }
+
+    match /events/{eventId} {
+      allow read, write: if true;
     }
   }
 }

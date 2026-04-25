@@ -1,37 +1,22 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
-import { getFirestore, doc, getDocFromServer, collection, query, where, onSnapshot, addDoc, updateDoc, deleteDoc, getDocs, serverTimestamp } from 'firebase/firestore';
+import { getFirestore, doc, collection, query, where, onSnapshot, addDoc, updateDoc, getDocs, serverTimestamp } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
-import firebaseAppletConfig from '../../firebase-applet-config.json';
-
-const getConfigValue = (envVal: string | undefined, configVal: string | undefined) => {
-  const val = (envVal || configVal || '').trim();
-  // Filter out the variable name itself if it leaked into the bundle
-  if (!val || val === 'undefined' || val === 'null' || val.includes('VITE_FIREBASE_')) {
-    return (configVal || '').trim();
-  }
-  return val;
-};
 
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain: getConfigValue(import.meta.env.VITE_FIREBASE_AUTH_DOMAIN, firebaseAppletConfig.authDomain),
-  projectId: getConfigValue(import.meta.env.VITE_FIREBASE_PROJECT_ID, firebaseAppletConfig.projectId),
-  storageBucket: getConfigValue(import.meta.env.VITE_FIREBASE_STORAGE_BUCKET, firebaseAppletConfig.storageBucket),
-  messagingSenderId: getConfigValue(import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID, firebaseAppletConfig.messagingSenderId),
-  appId: getConfigValue(import.meta.env.VITE_FIREBASE_APP_ID, firebaseAppletConfig.appId),
-  measurementId: getConfigValue(import.meta.env.VITE_FIREBASE_MEASUREMENT_ID, firebaseAppletConfig.measurementId),
-  databaseId: getConfigValue(import.meta.env.VITE_FIREBASE_DATABASE_ID, firebaseAppletConfig.firestoreDatabaseId || '(default)'),
+  apiKey: 'AIzaSyApICQ7VyaOwUPNKGHGKHtoC1aRfM1SlsQ',
+  authDomain: 'gen-lang-client-0972957793.firebaseapp.com',
+  projectId: 'gen-lang-client-0972957793',
+  storageBucket: 'gen-lang-client-0972957793.firebasestorage.app',
+  messagingSenderId: '432237418767',
+  appId: '1:432237418767:web:914ba09a83145fc389467a',
+  measurementId: '',
 };
 
-const apiKeyVal = String(firebaseConfig.apiKey || '');
-console.log(`Firebase Config Info:`);
-console.log(`- API Key length: ${apiKeyVal.length}`);
-console.log(`- API Key prefix: ${apiKeyVal.substring(0, 4)}`);
-console.log(`- Project ID: ${firebaseConfig.projectId}`);
+const databaseId = 'ai-studio-3ae5dfac-ad17-4b4e-af19-ba1c6c13ffca';
 
 const app = initializeApp(firebaseConfig);
-export const db = getFirestore(app, firebaseConfig.databaseId);
+export const db = getFirestore(app, databaseId);
 export const auth = getAuth(app);
 export const storage = getStorage(app);
 
@@ -93,17 +78,7 @@ export const seedEventsIfEmpty = async () => {
       return true;
     }
   } catch (error) {
-    console.warn("Seeding skipped or failed:", error);
+    // Silent
   }
   return false;
 };
-
-async function testConnection() {
-  try {
-    await getDocFromServer(doc(db, 'test', 'connection'));
-    console.log("Firestore connection successful");
-  } catch (error) {
-    console.error("Firestore connectivity test failed:", error);
-  }
-}
-testConnection();

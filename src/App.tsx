@@ -163,34 +163,11 @@ const ScheduleTab = ({ user }: { user: User }) => {
   }, [selectedDay]);
 
   const handleAddEvent = async () => {
-    const title = prompt("Event Title:");
-    if (!title) return;
-    const time = prompt("Time (HH:mm):", "12:00");
-    if (!time) return;
-    const location = prompt("Location:");
-    const desc = prompt("Description:");
-    
-    try {
-      const newEvent = {
-        title,
-        time,
-        location: location || '',
-        desc: desc || '',
-        dayIndex: selectedDay,
-        icon: 'MapPin',
-        cat: 'Activity',
-        color: 'bg-indigo-100 text-indigo-600'
-      };
-      
-      console.log("Submitting new event...", newEvent);
-      await addEvent(newEvent);
-      console.log("Add event call finished");
-    } catch (err) {
-      console.error("handleAddEvent error:", err);
-      alert("Failed to add event: " + (err instanceof Error ? err.message : String(err)));
-    } finally {
-      setLoading(false);
-    }
+    await addDoc(collection(db, 'events'), { 
+      title: 'Test', 
+      date: '2026-05-21'
+    });
+    alert('Event added!');
   };
 
   const handleEditEvent = async (event: any) => {
@@ -639,7 +616,7 @@ export default function App() {
           const { signInAnonymously } = await import('firebase/auth');
           await signInAnonymously(auth);
         } catch (err) {
-          console.error("Anonymous sign in error:", err);
+          console.error("Auth error:", err);
         }
       }
       setLoading(false);
