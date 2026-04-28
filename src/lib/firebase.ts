@@ -51,7 +51,20 @@ export const subscribeToEvents = (dayIndex: number, callback: (events: any[]) =>
       id: doc.id,
       ...doc.data()
     }));
-    items.sort((a: any, b: any) => (a.time || '').localeCompare(b.time || ''));
+    items.sort((a: any, b: any) => {
+      // Priority 1: No time items go to the bottom
+      if (a.noTime && !b.noTime) return 1;
+      if (!a.noTime && b.noTime) return -1;
+      
+      // Priority 2: If both have time, compare time
+      if (!a.noTime && !b.noTime) {
+        const timeCompare = (a.time || '').localeCompare(b.time || '');
+        if (timeCompare !== 0) return timeCompare;
+      }
+      
+      // Priority 3: Fallback to order
+      return (a.order || 0) - (b.order || 0);
+    });
     callback(items);
   }, (error) => {
     console.error("Firestore Snapshot Error at trips/" + TRIP_ID + "/events:", error);

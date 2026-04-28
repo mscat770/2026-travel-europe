@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence, Reorder } from 'motion/react';
 import firebaseConfig from '../firebase-applet-config.json';
 import { 
   Calendar, 
@@ -145,6 +145,7 @@ const ScheduleTab = ({ user }: { user: User }) => {
   const [formData, setFormData] = useState({
     title: '',
     time: '12:00',
+    noTime: false,
     location: '',
     desc: '',
     cat: 'OTHER',
@@ -242,6 +243,7 @@ const ScheduleTab = ({ user }: { user: User }) => {
     setFormData({
       title: '',
       time: '12:00',
+      noTime: false,
       location: '',
       desc: '',
       cat: 'SIGHTS',
@@ -255,6 +257,7 @@ const ScheduleTab = ({ user }: { user: User }) => {
     setFormData({
       title: event.title || '',
       time: event.time || '12:00',
+      noTime: event.noTime || false,
       location: event.location || '',
       desc: event.desc || '',
       cat: event.cat || 'SIGHTS',
@@ -283,6 +286,8 @@ const ScheduleTab = ({ user }: { user: User }) => {
       const icon = categories.find(c => c.value === formData.cat)?.icon || 'MapPin';
       const eventPayload = {
         ...formData,
+        noTime: formData.noTime,
+        order: editingEvent ? (editingEvent.order || 0) : events.length,
         dayIndex: selectedDay,
         icon,
         color: formData.cat === 'TRANSPORT' ? 'bg-orange-100 text-orange-600' :
@@ -303,6 +308,7 @@ const ScheduleTab = ({ user }: { user: User }) => {
       setFormData({
         title: '',
         time: '12:00',
+        noTime: false,
         location: '',
         desc: '',
         cat: 'SIGHTS',
@@ -422,7 +428,7 @@ const ScheduleTab = ({ user }: { user: User }) => {
       </motion.div>
 
       {/* Itinerary Section */}
-      <div className="px-4 space-y-4 pb-12 font-sans">
+      <div className="px-4 pb-12 font-sans overflow-visible">
         {loading ? (
           <p className="text-center py-10 text-xs text-brand-dark/20 font-bold">Loading schedule...</p>
         ) : events.length === 0 ? (
@@ -431,88 +437,92 @@ const ScheduleTab = ({ user }: { user: User }) => {
             <p className="text-xs font-bold uppercase tracking-widest">No events planned</p>
           </div>
         ) : (
-          events.map((item, i) => {
-            const Icon = iconMap[item.icon] || MapPin;
-            return (
-              <motion.div
-                key={item.id}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                whileTap={{ scale: 0.97 }}
-                transition={{ delay: i * 0.03 }}
-                className="relative overflow-hidden w-full bg-white rounded-[1.5rem] shadow-sm border border-brand-green/10 transition-all hover:shadow-md cursor-pointer active:shadow-inner"
-                onClick={() => {
-                  setSelectedEvent(item);
-                  setIsDetailOpen(true);
-                }}
-              >
-                <div className={`absolute left-0 top-0 bottom-0 w-1 ${item.color?.split(' ')[1]?.replace('text-', 'bg-') || 'bg-brand-accent'}`} />
-                
-                <div className="py-4 pr-4 pl-5 flex flex-col gap-3">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <div className="px-2 h-5 flex items-center justify-center bg-gray-50 rounded-lg">
-                        <Clock size={10} className="text-brand-dark/30 mr-1" />
-                        <span className="text-[10px] font-bold text-brand-dark/70 font-display leading-none">{item.time}</span>
-                      </div>
-                      <div className={`px-2 h-5 flex items-center justify-center rounded-lg border border-current/10 ${item.color || 'bg-brand-green/10 text-brand-accent'}`}>
-                        <span className="text-[9px] font-bold uppercase tracking-wider font-display leading-none">{item.cat === 'SIGHTSEEING' ? 'SIGHTS' : (item.cat || 'Activity')}</span>
-                      </div>
-                    </div>
-                    <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
-                      <button 
-                        onClick={() => handleOpenEdit(item)}
-                        className="text-brand-dark/15 hover:text-brand-accent transition-all p-1.5 hover:bg-brand-accent/5 rounded-lg"
-                        title="Edit"
-                      >
-                        <Pencil size={12} />
-                      </button>
-                      <button 
-                        onClick={() => handleDeleteEvent(item.id)}
-                        className="text-brand-dark/15 hover:text-red-400 transition-all p-1.5 hover:bg-red-50 rounded-lg"
-                        title="Delete"
-                      >
-                        <Trash2 size={12} />
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="flex gap-3 items-start">
-                    <div className={`flex-shrink-0 pt-0.5 ${item.color?.split(' ')[1] || 'text-brand-accent'} opacity-80`}>
-                      <Icon size={20} strokeWidth={2.5} />
-                    </div>
-                    <div className="flex flex-col gap-1 min-w-0">
-                      <h3 className="text-base font-bold text-brand-dark font-display leading-tight truncate">{item.title}</h3>
-                      {item.location && (
-                        <div className="flex items-center gap-2 text-brand-dark/40 text-[10px] font-medium font-sans">
-                          <div className="flex items-center gap-1 min-w-0">
-                            <MapPin size={10} className="flex-shrink-0 opacity-40" />
-                            <span className="truncate">{item.location}</span>
+          <Reorder.Group axis="y" values={events} onReorder={(newOrder) => {
+            setEvents(newOrder);
+            // Bulk update order in background
+            newOrder.forEach((item, index) => {
+               if (item.order !== index) {
+                 updateEvent(item.id, { order: index });
+               }
+            });
+          }} className="space-y-4">
+            {events.map((item) => {
+              const Icon = iconMap[item.icon] || MapPin;
+              return (
+                <Reorder.Item
+                  key={item.id}
+                  value={item}
+                  className="relative overflow-visible cursor-grab active:cursor-grabbing"
+                  whileDrag={{ opacity: 0.9, scale: 1.02, boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)", zIndex: 50 }}
+                >
+                  <div
+                    className="relative overflow-hidden w-full bg-white rounded-[1.5rem] shadow-sm border border-brand-green/10 transition-all hover:shadow-md active:shadow-inner"
+                    onClick={() => {
+                      setSelectedEvent(item);
+                      setIsDetailOpen(true);
+                    }}
+                  >
+                    <div className={`absolute left-0 top-0 bottom-0 w-1 ${item.color?.split(' ')[1]?.replace('text-', 'bg-') || 'bg-brand-accent'}`} />
+                    
+                    <div className="py-4 pr-4 pl-5 flex flex-col gap-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          {!item.noTime && (
+                            <div className="px-2 h-5 flex items-center justify-center bg-gray-50 rounded-lg">
+                              <Clock size={10} className="text-brand-dark/30 mr-1" />
+                              <span className="text-[10px] font-bold text-brand-dark/70 font-display leading-none">{item.time}</span>
+                            </div>
+                          )}
+                          <div className={`px-2 h-5 flex items-center justify-center rounded-lg border border-current/10 ${item.color || 'bg-brand-green/10 text-brand-accent'}`}>
+                            <span className="text-[9px] font-bold uppercase tracking-wider font-display leading-none">{item.cat === 'SIGHTSEEING' ? 'SIGHTS' : (item.cat || 'Activity')}</span>
                           </div>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(item.location)}`, '_blank');
-                            }}
-                            className="flex-shrink-0 text-brand-accent/60 hover:text-brand-accent transition-colors"
-                            title="View on Google Maps"
+                        </div>
+                        <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
+                          <button 
+                            onClick={() => handleOpenEdit(item)}
+                            className="text-brand-dark/15 hover:text-brand-accent transition-all p-1.5 hover:bg-brand-accent/5 rounded-lg"
+                            title="Edit"
                           >
-                            <ExternalLink size={10} />
+                            <Pencil size={12} />
                           </button>
+                          <button 
+                            onClick={() => handleDeleteEvent(item.id)}
+                            className="text-brand-dark/15 hover:text-red-400 transition-all p-1.5 hover:bg-red-50 rounded-lg"
+                            title="Delete"
+                          >
+                            <Trash2 size={12} />
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="flex gap-3 items-start">
+                        <div className={`flex-shrink-0 pt-0.5 ${item.color?.split(' ')[1] || 'text-brand-accent'} opacity-80`}>
+                          <Icon size={20} strokeWidth={2.5} />
+                        </div>
+                        <div className="flex flex-col gap-1 min-w-0">
+                          <h3 className="text-base font-bold text-brand-dark font-display leading-tight truncate">{item.title}</h3>
+                          {item.location && (
+                            <div className="flex items-center gap-2 text-brand-dark/40 text-[10px] font-medium font-sans">
+                              <div className="flex items-center gap-1 min-w-0">
+                                <MapPin size={10} className="flex-shrink-0 opacity-40" />
+                                <span className="truncate">{item.location}</span>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {item.desc && (
+                        <div className="bg-gray-50/30 rounded-xl px-3 py-2 border border-gray-100/50">
+                          <p className="text-[10px] leading-relaxed text-brand-dark/40 font-sans italic line-clamp-1">{item.desc}</p>
                         </div>
                       )}
                     </div>
                   </div>
-
-                  {item.desc && (
-                    <div className="bg-gray-50/30 rounded-xl px-3 py-2 border border-gray-100/50">
-                      <p className="text-[10px] leading-relaxed text-brand-dark/40 font-sans italic line-clamp-1">{item.desc}</p>
-                    </div>
-                  )}
-                </div>
-              </motion.div>
-            );
-          })
+                </Reorder.Item>
+              );
+            })}
+          </Reorder.Group>
         )}
 
         <motion.button
@@ -572,13 +582,28 @@ const ScheduleTab = ({ user }: { user: User }) => {
 
                 <div className="grid grid-cols-2 sm:flex sm:flex-nowrap gap-3 sm:gap-4 items-end">
                   <div className="space-y-1">
-                    <label className="text-[10px] font-bold uppercase tracking-widest text-brand-dark/40 ml-1">Time</label>
+                    <div className="flex justify-between items-center mb-1">
+                      <label className="text-[10px] font-bold uppercase tracking-widest text-brand-dark/40 ml-1">Time</label>
+                      <label className="flex items-center gap-1.5 cursor-pointer group">
+                        <input 
+                          type="checkbox" 
+                          checked={formData.noTime} 
+                          onChange={(e) => setFormData({ ...formData, noTime: e.target.checked })}
+                          className="sr-only"
+                        />
+                        <div className={`w-7 h-4 rounded-full transition-colors relative ${formData.noTime ? 'bg-brand-accent' : 'bg-brand-dark/10'}`}>
+                          <div className={`absolute top-0.5 left-0.5 w-3 h-3 bg-white rounded-full transition-transform ${formData.noTime ? 'translate-x-3' : ''}`} />
+                        </div>
+                        <span className="text-[9px] font-bold text-brand-dark/30 group-hover:text-brand-accent transition-colors">NO TIME</span>
+                      </label>
+                    </div>
                     <input
-                      required
+                      required={!formData.noTime}
+                      disabled={formData.noTime}
                       type="time"
                       value={formData.time}
                       onChange={(e) => setFormData({ ...formData, time: e.target.value })}
-                      className="w-full h-[44px] sm:h-[48px] px-3 sm:px-4 py-2 bg-brand-beige/50 rounded-xl border border-brand-green/20 focus:outline-none focus:border-brand-accent font-sans text-sm"
+                      className={`w-full h-[44px] sm:h-[48px] px-3 sm:px-4 py-2 bg-brand-beige/50 rounded-xl border border-brand-green/20 focus:outline-none focus:border-brand-accent font-sans text-sm transition-opacity ${formData.noTime ? 'opacity-30' : 'opacity-100'}`}
                     />
                   </div>
                   <div className="flex-1 space-y-1">
