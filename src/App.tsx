@@ -7,7 +7,7 @@ import {
   Wallet, 
   BookOpen, 
   CheckSquare, 
-  Users, 
+  StickyNote,
   Plus,
   MapPin,
   Clock,
@@ -46,7 +46,7 @@ import {
   User,
   signOut
 } from 'firebase/auth';
-import { collection, query, where, onSnapshot, doc, getDoc, updateDoc, addDoc, deleteDoc } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, doc, getDoc, updateDoc, addDoc, deleteDoc, orderBy } from 'firebase/firestore';
 
 declare global {
   interface Window {
@@ -55,7 +55,7 @@ declare global {
 }
 
 // --- Types ---
-type Tab = 'schedule' | 'bookings' | 'expense' | 'journal' | 'planning' | 'members';
+type Tab = 'schedule' | 'bookings' | 'expense' | 'journal' | 'planning' | 'notes';
 
 // --- Shared Components ---
 const BottomNav = ({ activeTab, setActiveTab }: { activeTab: Tab; setActiveTab: (t: Tab) => void }) => {
@@ -65,7 +65,7 @@ const BottomNav = ({ activeTab, setActiveTab }: { activeTab: Tab; setActiveTab: 
     { id: 'expense', icon: Wallet, label: 'Expenses' },
     { id: 'journal', icon: BookOpen, label: 'Journal' },
     { id: 'planning', icon: CheckSquare, label: 'Checklist' },
-    { id: 'members', icon: Users, label: 'Team' },
+    { id: 'notes', icon: StickyNote, label: 'Notes' },
   ];
 
   return (
@@ -1203,31 +1203,118 @@ const PlanningTab = ({ user }: { user: User }) => {
   );
 };
 
-const MembersTab = () => {
+const NotesTab = ({ user }: { user: any }) => {
+  const [notes, setNotes] = useState<{ id: string; title: string; content: string; createdAt: string }[]>([]);
+  const [title, setTitle] = useState('');
+  const [content, setContent] = useState('');
+  const [isAdding, setIsAdding] = useState(false);
+  const tripId = "europe-2026-trip";
+
+  useEffect(() => {
+    const q = query(collection(db, 'trips', tripId, 'notes'), orderBy('createdAt', 'desc'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const docs = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as any[];
+      setNotes(docs);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  const handleAddNote = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!title.trim() && !content.trim()) return;
+    setIsAdding(true);
+    try {
+      await addDoc(collection(db, 'trips', tripId, 'notes'), {
+        title: title.trim(),
+        content: content.trim(),
+        authorId: user.uid,
+        createdAt: new Date().toISOString()
+      });
+      setTitle('');
+      setContent('');
+    } catch (err) {
+      console.error("Add note error:", err);
+    } finally {
+      setIsAdding(false);
+    }
+  };
+
+  const handleDeleteNote = async (id: string, noteTitle: string) => {
+    if (window.confirm(`確定要刪除「${noteTitle || '此筆筆記'}」嗎？`)) {
+      try {
+        await deleteDoc(doc(db, 'trips', tripId, 'notes', id));
+      } catch (err) {
+        console.error("Delete note error:", err);
+      }
+    }
+  };
+
   return (
-    <div id="members-tab" className="px-6 pb-32 space-y-4">
-      {[
-        { name: 'Mei (我)', role: '主辦人', bio: '吃貨擔當 🍜', seed: 'Felix' },
-        { name: 'Jay', role: '攝影師', bio: '拍照擔當 📸', seed: 'Jack' },
-        { name: 'Lena', role: '財務長', bio: '精打細算 💸', seed: 'Aneka' },
-      ].map((member, i) => (
-        <div key={i} className="journal-card flex items-center gap-4 transition-transform active:scale-95">
-          <div className="w-14 h-14 rounded-full bg-brand-green/30 border-2 border-brand-accent overflow-hidden">
-            <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${member.seed}`} alt="avatar" />
-          </div>
-          <div className="flex-1">
-            <div className="flex justify-between items-center">
-              <h4 className="font-bold">{member.name}</h4>
-              <span className="text-[10px] bg-brand-accent text-white px-2 py-0.5 rounded-full font-bold uppercase">{member.role}</span>
-            </div>
-            <p className="text-xs text-brand-dark/60 mt-1">{member.bio}</p>
-          </div>
-        </div>
-      ))}
-      <button className="w-full journal-card border-2 border-dashed border-brand-green bg-transparent flex flex-col items-center py-8 opacity-60 hover:opacity-100 transition-opacity">
-        <Plus size={32} className="text-brand-accent mb-2" />
-        <span className="font-bold text-sm">邀請新成員</span>
-      </button>
+    <div className="px-6 pb-32 space-y-6">
+      <div className="journal-card p-5">
+        <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-brand-dark/30 mb-4">New Note</h3>
+        <form onSubmit={handleAddNote} className="space-y-3">
+          <input 
+            type="text"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="Note Title (e.g. Ghent Info)"
+            className="w-full px-4 py-2.5 bg-brand-beige/30 rounded-xl border border-brand-green/10 focus:outline-none focus:border-brand-accent/30 font-sans text-xs font-bold"
+          />
+          <textarea 
+            value={content}
+            onChange={(e) => setContent(e.target.value)}
+            placeholder="Write down details, tips or addresses..."
+            rows={3}
+            className="w-full px-4 py-3 bg-brand-beige/30 rounded-xl border border-brand-green/10 focus:outline-none focus:border-brand-accent/30 font-sans text-xs resize-none"
+          />
+          <button 
+            type="submit"
+            disabled={isAdding || (!title.trim() && !content.trim())}
+            className="w-full py-3 bg-brand-accent text-white rounded-xl font-bold font-display uppercase tracking-widest text-[9px] shadow-lg shadow-brand-accent/20 transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50"
+          >
+            {isAdding ? 'Saving...' : 'Add Note'}
+          </button>
+        </form>
+      </div>
+
+      <div className="space-y-4">
+        <AnimatePresence mode="popLayout">
+          {notes.length === 0 ? (
+            <motion.p className="text-center py-12 text-[10px] text-brand-dark/20 font-bold">No notes yet ✍️</motion.p>
+          ) : (
+            notes.map((note) => (
+              <motion.div 
+                key={note.id}
+                layout
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                className="journal-card p-4 overflow-hidden group"
+              >
+                <div className="flex justify-between items-start mb-2">
+                  <h4 className="text-xs font-bold text-brand-dark font-display">{note.title || 'Untitled Note'}</h4>
+                  <button 
+                    onClick={() => handleDeleteNote(note.id, note.title)}
+                    className="p-1 px-1.5 text-brand-dark/10 hover:text-red-400 hover:bg-red-50 rounded-lg transition-all"
+                  >
+                    <Trash2 size={12} />
+                  </button>
+                </div>
+                <p className="text-[11px] text-brand-dark/70 font-sans leading-relaxed whitespace-pre-wrap">{note.content}</p>
+                <div className="mt-3 pt-3 border-t border-brand-dark/5 flex justify-between items-center">
+                  <span className="text-[8px] font-bold text-brand-dark/20 uppercase tracking-widest">
+                    {new Date(note.createdAt).toLocaleDateString()}
+                  </span>
+                </div>
+              </motion.div>
+            ))
+          )}
+        </AnimatePresence>
+      </div>
     </div>
   );
 };
@@ -1292,7 +1379,7 @@ export default function App() {
       case 'expense': return '旅遊記帳簿';
       case 'journal': return '旅行回憶錄';
       case 'planning': return 'Checklist';
-      case 'members': return '冒險夥伴們';
+      case 'notes': return '旅行備忘錄';
     }
   };
 
@@ -1333,7 +1420,7 @@ export default function App() {
             {activeTab === 'expense' && <ExpenseTab />}
             {activeTab === 'journal' && <JournalTab />}
             {activeTab === 'planning' && <PlanningTab user={user!} />}
-            {activeTab === 'members' && <MembersTab />}
+            {activeTab === 'notes' && <NotesTab user={user!} />}
           </motion.div>
         </AnimatePresence>
       </div>
