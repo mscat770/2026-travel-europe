@@ -26,7 +26,8 @@ import {
   Pencil,
   Trash2,
   Paperclip,
-  ExternalLink
+  ExternalLink,
+  ChevronDown
 } from 'lucide-react';
 import { 
   auth, 
@@ -150,13 +151,90 @@ const ScheduleTab = ({ user }: { user: User }) => {
     link: ''
   });
 
+  // Weather State
+  const [weather, setWeather] = useState<{
+    temp: number;
+    desc: string;
+    icon: any;
+    locationName: string;
+    loading: boolean;
+  }>({
+    temp: 22,
+    desc: 'Sunny',
+    icon: Sun,
+    locationName: 'EUROPE',
+    loading: false
+  });
+
+  const fetchWeather = async (locationQuery: string) => {
+    setWeather(prev => ({ ...prev, loading: true }));
+    try {
+      // 1. Geocode location using Nominatim (OSM)
+      const geoRes = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(locationQuery)}&format=json&limit=1`);
+      const geoData = await geoRes.json();
+      
+      let lat = 52.3676; // Default Amsterdam
+      let lon = 4.9041;
+      let displayName = 'AMSTERDAM';
+
+      if (geoData && geoData.length > 0) {
+        lat = parseFloat(geoData[0].lat);
+        lon = parseFloat(geoData[0].lon);
+        displayName = geoData[0].display_name.split(',')[0].toUpperCase();
+      }
+
+      // 2. Fetch weather from Open-Meteo
+      const weatherRes = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true`);
+      const weatherData = await weatherRes.json();
+      const current = weatherData.current_weather;
+      const code = current.weathercode;
+
+      // WMO Weather interpretation codes (WW)
+      const weatherMap: Record<number, { desc: string, icon: any }> = {
+        0: { desc: 'Sunny', icon: Sun },
+        1: { desc: 'Mainly Clear', icon: CloudSun },
+        2: { desc: 'Partly Cloudy', icon: CloudSun },
+        3: { desc: 'Overcast', icon: Cloud },
+        45: { desc: 'Foggy', icon: Cloud },
+        48: { desc: 'Foggy', icon: Cloud },
+        51: { desc: 'Light Drizzle', icon: CloudRain },
+        53: { desc: 'Drizzle', icon: CloudRain },
+        55: { desc: 'Heavy Drizzle', icon: CloudRain },
+        61: { desc: 'Slight Rain', icon: CloudRain },
+        63: { desc: 'Moderate Rain', icon: CloudRain },
+        65: { desc: 'Heavy Rain', icon: CloudRain },
+        71: { desc: 'Slight Snow', icon: Cloud },
+        73: { desc: 'Moderate Snow', icon: Cloud },
+        75: { desc: 'Heavy Snow', icon: Cloud },
+        95: { desc: 'Thunderstorm', icon: CloudRain },
+      };
+
+      const info = weatherMap[code] || { desc: 'Clear', icon: Sun };
+
+      setWeather({
+        temp: Math.round(current.temperature),
+        desc: info.desc,
+        icon: info.icon,
+        locationName: displayName,
+        loading: false
+      });
+    } catch (err) {
+      console.error("Weather fetch failed:", err);
+      setWeather(prev => ({ ...prev, loading: false }));
+    }
+  };
+
+  useEffect(() => {
+    // Determine which location to fetch weather for
+    const firstLocation = events.find(e => e.location)?.location || 'Amsterdam';
+    fetchWeather(firstLocation);
+  }, [selectedDay, events.find(e => e.location)?.location]); // Trigger if day changes OR first valid location string changes
+
   const categories = [
     { label: 'TRANSPORT', value: 'TRANSPORT', icon: 'Plane' },
     { label: 'FOOD', value: 'FOOD', icon: 'Utensils' },
     { label: 'STAY', value: 'STAY', icon: 'Hotel' },
-    { label: 'SIGHTSEEING', value: 'SIGHTSEEING', icon: 'Camera' },
-    { label: 'SHOPPING', value: 'SHOPPING', icon: 'ShoppingCart' },
-    { label: 'OTHER', value: 'OTHER', icon: 'MapPin' },
+    { label: 'SIGHTS', value: 'SIGHTS', icon: 'Camera' },
   ];
 
   const handleOpenAdd = () => {
@@ -166,7 +244,7 @@ const ScheduleTab = ({ user }: { user: User }) => {
       time: '12:00',
       location: '',
       desc: '',
-      cat: 'OTHER',
+      cat: 'SIGHTS',
       link: ''
     });
     setIsModalOpen(true);
@@ -210,8 +288,7 @@ const ScheduleTab = ({ user }: { user: User }) => {
         color: formData.cat === 'TRANSPORT' ? 'bg-orange-100 text-orange-600' :
                formData.cat === 'FOOD' ? 'bg-amber-100 text-amber-600' :
                formData.cat === 'STAY' ? 'bg-sky-100 text-sky-600' :
-               formData.cat === 'SIGHTSEEING' ? 'bg-emerald-100 text-emerald-600' :
-               formData.cat === 'SHOPPING' ? 'bg-pink-100 text-pink-600' :
+               formData.cat === 'SIGHTS' ? 'bg-emerald-100 text-emerald-600' :
                'bg-indigo-100 text-indigo-600'
       };
 
@@ -309,29 +386,37 @@ const ScheduleTab = ({ user }: { user: User }) => {
       {/* Dashed Separator */}
       <div className="mx-6 border-t border-dashed border-gray-300 mt-4 mb-6 opacity-60" />
 
-      {/* Weather Card Placeholder (keeping as is for UI consistency) */}
+      {/* Weather Card */}
       <motion.div
         key={selectedDay}
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         className="mx-4 mb-6 bg-white rounded-2xl border border-brand-green/10 shadow-sm overflow-hidden"
       >
-        <div className="py-4 px-4 flex items-center justify-between">
+        <div className={`py-4 px-4 flex items-center justify-between transition-opacity duration-300 ${weather.loading ? 'opacity-50' : 'opacity-100'}`}>
           <div className="flex gap-3 items-center">
-            <div className={`p-2.5 rounded-2xl bg-amber-50 text-amber-500`}>
-              <Sun size={24} strokeWidth={2} />
+            <div className={`p-2.5 rounded-2xl ${weather.desc.includes('Rain') || weather.desc.includes('Drizzle') ? 'bg-blue-50 text-blue-500' : 'bg-amber-50 text-amber-500'}`}>
+              <weather.icon size={24} strokeWidth={2} className={weather.loading ? 'animate-pulse' : ''} />
             </div>
             <div className="flex flex-col">
               <div className="flex items-center gap-2">
-                <span className="text-[17px] font-bold text-brand-dark font-display leading-tight">22°C</span>
+                <span className="text-[17px] font-bold text-brand-dark font-display leading-tight">
+                  {weather.loading ? '--' : `${weather.temp}°C`}
+                </span>
                 <div className="h-3 w-[1px] bg-brand-dark/10" />
-                <span className="text-[11px] font-bold uppercase tracking-wider text-brand-dark/40 font-display">Sunny</span>
+                <span className="text-[11px] font-bold uppercase tracking-wider text-brand-dark/40 font-display">
+                  {weather.loading ? 'Loading...' : weather.desc}
+                </span>
               </div>
-              <p className="text-[11px] text-brand-dark/50 font-sans mt-0.5 italic">Perfect for travelling.</p>
+              <p className="text-[11px] text-brand-dark/50 font-sans mt-0.5 italic">
+                {weather.temp > 20 ? 'Perfect for travelling.' : weather.temp > 10 ? 'A bit chilly today.' : 'Bundle up, it\'s cold!'}
+              </p>
             </div>
           </div>
           <div className="flex flex-col items-end">
-             <span className="text-[9px] font-black uppercase tracking-widest text-brand-dark/20 font-display">EUROPE</span>
+             <span className="text-[9px] font-black uppercase tracking-widest text-brand-dark/20 font-display truncate max-w-[80px]">
+               {weather.locationName}
+             </span>
           </div>
         </div>
       </motion.div>
@@ -371,7 +456,7 @@ const ScheduleTab = ({ user }: { user: User }) => {
                         <span className="text-[10px] font-bold text-brand-dark/70 font-display leading-none">{item.time}</span>
                       </div>
                       <div className={`px-2 h-5 flex items-center justify-center rounded-lg border border-current/10 ${item.color || 'bg-brand-green/10 text-brand-accent'}`}>
-                        <span className="text-[9px] font-bold uppercase tracking-wider font-display leading-none">{item.cat || 'Activity'}</span>
+                        <span className="text-[9px] font-bold uppercase tracking-wider font-display leading-none">{item.cat === 'SIGHTSEEING' ? 'SIGHTS' : (item.cat || 'Activity')}</span>
                       </div>
                     </div>
                     <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
@@ -485,28 +570,33 @@ const ScheduleTab = ({ user }: { user: User }) => {
                   />
                 </div>
 
-                <div className="flex gap-4 items-end">
-                  <div className="w-24 space-y-1">
+                <div className="flex flex-wrap sm:flex-nowrap gap-4 items-end">
+                  <div className="w-full sm:w-32 space-y-1">
                     <label className="text-[10px] font-bold uppercase tracking-widest text-brand-dark/40 ml-1">Time</label>
                     <input
                       required
                       type="time"
                       value={formData.time}
                       onChange={(e) => setFormData({ ...formData, time: e.target.value })}
-                      className="w-full px-3 py-3 bg-brand-beige/50 rounded-xl border border-brand-green/20 focus:outline-none focus:border-brand-accent font-sans text-sm"
+                      className="w-full h-[50px] px-4 py-3 bg-brand-beige/50 rounded-xl border border-brand-green/20 focus:outline-none focus:border-brand-accent font-sans text-sm"
                     />
                   </div>
-                  <div className="flex-1 space-y-1">
+                  <div className="w-full flex-1 space-y-1">
                     <label className="text-[10px] font-bold uppercase tracking-widest text-brand-dark/40 ml-1">Category</label>
-                    <select
-                      value={formData.cat}
-                      onChange={(e) => setFormData({ ...formData, cat: e.target.value })}
-                      className="w-full px-4 py-3 bg-brand-beige/50 rounded-xl border border-brand-green/20 focus:outline-none focus:border-brand-accent font-sans text-sm appearance-none"
-                    >
-                      {categories.map(cat => (
-                        <option key={cat.value} value={cat.value}>{cat.label}</option>
-                      ))}
-                    </select>
+                    <div className="relative">
+                      <select
+                        value={formData.cat}
+                        onChange={(e) => setFormData({ ...formData, cat: e.target.value })}
+                        className="w-full h-[50px] px-4 py-3 bg-brand-beige/50 rounded-xl border border-brand-green/20 focus:outline-none focus:border-brand-accent font-sans text-sm appearance-none cursor-pointer"
+                      >
+                        {categories.map(cat => (
+                          <option key={cat.value} value={cat.value}>{cat.label}</option>
+                        ))}
+                      </select>
+                      <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-brand-dark/30">
+                        <ChevronDown size={14} />
+                      </div>
+                    </div>
                   </div>
                 </div>
 
@@ -594,7 +684,7 @@ const ScheduleTab = ({ user }: { user: User }) => {
                     {selectedEvent.time}
                   </div>
                   <div className={`px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider ${selectedEvent.color}`}>
-                    {selectedEvent.cat}
+                    {selectedEvent.cat === 'SIGHTSEEING' ? 'SIGHTS' : selectedEvent.cat}
                   </div>
                 </div>
                 
