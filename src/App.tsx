@@ -257,7 +257,7 @@ const ScheduleTab = ({ user }: { user: User }) => {
       time: event.time || '12:00',
       location: event.location || '',
       desc: event.desc || '',
-      cat: event.cat || 'OTHER',
+      cat: event.cat || 'SIGHTS',
       link: event.link || ''
     });
     setIsModalOpen(true);
@@ -305,7 +305,7 @@ const ScheduleTab = ({ user }: { user: User }) => {
         time: '12:00',
         location: '',
         desc: '',
-        cat: 'OTHER',
+        cat: 'SIGHTS',
         link: ''
       });
       setEditingEvent(null);
@@ -541,11 +541,11 @@ const ScheduleTab = ({ user }: { user: User }) => {
                 animate={{ y: 0 }}
                 exit={{ y: "100%" }}
                 transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-                className="relative w-full max-w-md bg-white rounded-t-[2.5rem] sm:rounded-[2.5rem] p-8 shadow-2xl overflow-visible"
+                className="relative w-full max-w-md bg-white rounded-t-[2.5rem] sm:rounded-[2.5rem] p-6 sm:p-8 shadow-2xl overflow-visible"
               >
-              <div className="w-12 h-1 bg-brand-dark/10 rounded-full mx-auto mb-6 sm:hidden" />
+              <div className="w-12 h-1 bg-brand-dark/10 rounded-full mx-auto mb-4 sm:hidden" />
               
-              <div className="flex justify-between items-center mb-6">
+              <div className="flex justify-between items-center mb-4 sm:mb-6">
                 <h2 className="text-xl font-bold font-display text-brand-dark">
                   {editingEvent ? 'Edit Event' : 'Add New Event'}
                 </h2>
@@ -557,7 +557,7 @@ const ScheduleTab = ({ user }: { user: User }) => {
                 </button>
               </div>
 
-              <form onSubmit={handleSave} className="space-y-4">
+              <form onSubmit={handleSave} className="space-y-3 sm:space-y-4">
                 <div className="space-y-1">
                   <label className="text-[10px] font-bold uppercase tracking-widest text-brand-dark/40 ml-1">Title</label>
                   <input
@@ -565,35 +565,35 @@ const ScheduleTab = ({ user }: { user: User }) => {
                     type="text"
                     value={formData.title}
                     onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                    className="w-full px-4 py-3 bg-brand-beige/50 rounded-xl border border-brand-green/20 focus:outline-none focus:border-brand-accent font-sans text-sm"
+                    className="w-full px-4 py-2.5 sm:py-3 bg-brand-beige/50 rounded-xl border border-brand-green/20 focus:outline-none focus:border-brand-accent font-sans text-sm"
                     placeholder="E.g. Amsterdam Canal Cruise"
                   />
                 </div>
 
-                <div className="flex flex-wrap sm:flex-nowrap gap-4 items-end">
-                  <div className="w-full sm:w-32 space-y-1">
+                <div className="grid grid-cols-2 sm:flex sm:flex-nowrap gap-3 sm:gap-4 items-end">
+                  <div className="space-y-1">
                     <label className="text-[10px] font-bold uppercase tracking-widest text-brand-dark/40 ml-1">Time</label>
                     <input
                       required
                       type="time"
                       value={formData.time}
                       onChange={(e) => setFormData({ ...formData, time: e.target.value })}
-                      className="w-full h-[50px] px-4 py-3 bg-brand-beige/50 rounded-xl border border-brand-green/20 focus:outline-none focus:border-brand-accent font-sans text-sm"
+                      className="w-full h-[44px] sm:h-[48px] px-3 sm:px-4 py-2 bg-brand-beige/50 rounded-xl border border-brand-green/20 focus:outline-none focus:border-brand-accent font-sans text-sm"
                     />
                   </div>
-                  <div className="w-full flex-1 space-y-1">
+                  <div className="flex-1 space-y-1">
                     <label className="text-[10px] font-bold uppercase tracking-widest text-brand-dark/40 ml-1">Category</label>
                     <div className="relative">
                       <select
                         value={formData.cat}
                         onChange={(e) => setFormData({ ...formData, cat: e.target.value })}
-                        className="w-full h-[50px] px-4 py-3 bg-brand-beige/50 rounded-xl border border-brand-green/20 focus:outline-none focus:border-brand-accent font-sans text-sm appearance-none cursor-pointer"
+                        className="w-full h-[44px] sm:h-[48px] px-3 sm:px-4 py-2 bg-brand-beige/50 rounded-xl border border-brand-green/20 focus:outline-none focus:border-brand-accent font-sans text-sm appearance-none cursor-pointer"
                       >
                         {categories.map(cat => (
                           <option key={cat.value} value={cat.value}>{cat.label}</option>
                         ))}
                       </select>
-                      <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-brand-dark/30">
+                      <div className="absolute right-3 sm:right-4 top-1/2 -translate-y-1/2 pointer-events-none text-brand-dark/30">
                         <ChevronDown size={14} />
                       </div>
                     </div>
@@ -606,7 +606,7 @@ const ScheduleTab = ({ user }: { user: User }) => {
                     type="text"
                     value={formData.location}
                     onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-                    className="w-full px-4 py-3 bg-brand-beige/50 rounded-xl border border-brand-green/20 focus:outline-none focus:border-brand-accent font-sans text-sm"
+                    className="w-full px-4 py-2.5 sm:py-3 bg-brand-beige/50 rounded-xl border border-brand-green/20 focus:outline-none focus:border-brand-accent font-sans text-sm"
                     placeholder="Enter location"
                   />
                 </div>
@@ -614,10 +614,10 @@ const ScheduleTab = ({ user }: { user: User }) => {
                 <div className="space-y-1">
                   <label className="text-[10px] font-bold uppercase tracking-widest text-brand-dark/40 ml-1">Notes</label>
                   <textarea
-                    rows={3}
+                    rows={2}
                     value={formData.desc}
                     onChange={(e) => setFormData({ ...formData, desc: e.target.value })}
-                    className="w-full px-4 py-3 bg-brand-beige/50 rounded-xl border border-brand-green/20 focus:outline-none focus:border-brand-accent font-sans text-sm resize-none"
+                    className="w-full px-4 py-2.5 sm:py-3 bg-brand-beige/50 rounded-xl border border-brand-green/20 focus:outline-none focus:border-brand-accent font-sans text-sm resize-none"
                     placeholder="Any extra details..."
                   />
                 </div>
@@ -628,7 +628,7 @@ const ScheduleTab = ({ user }: { user: User }) => {
                     type="url"
                     value={formData.link}
                     onChange={(e) => setFormData({ ...formData, link: e.target.value })}
-                    className="w-full px-4 py-3 bg-brand-beige/50 rounded-xl border border-brand-green/20 focus:outline-none focus:border-brand-accent font-sans text-sm"
+                    className="w-full px-4 py-2.5 sm:py-3 bg-brand-beige/50 rounded-xl border border-brand-green/20 focus:outline-none focus:border-brand-accent font-sans text-sm"
                     placeholder="E.g. Google Drive link"
                   />
                 </div>
@@ -636,7 +636,7 @@ const ScheduleTab = ({ user }: { user: User }) => {
                 <button
                   type="submit"
                   disabled={isSaving}
-                  className={`w-full py-4 bg-brand-accent text-white rounded-2xl font-bold font-display uppercase tracking-wider shadow-lg shadow-brand-accent/20 transition-all mt-4 ${isSaving ? 'opacity-70 cursor-not-allowed scale-[0.98]' : 'hover:scale-[1.02]'}`}
+                  className={`w-full py-3.5 sm:py-4 bg-brand-accent text-white rounded-2xl font-bold font-display uppercase tracking-wider shadow-lg shadow-brand-accent/20 transition-all mt-2 sm:mt-4 ${isSaving ? 'opacity-70 cursor-not-allowed scale-[0.98]' : 'hover:scale-[1.02]'}`}
                 >
                   {isSaving ? 'Saving...' : (editingEvent ? 'Save Changes' : 'Create Event')}
                 </button>
