@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import firebaseConfig from '../firebase-applet-config.json';
 import { 
@@ -46,7 +46,7 @@ import {
   User,
   signOut
 } from 'firebase/auth';
-import { collection, query, where, onSnapshot, doc, getDoc, updateDoc, addDoc } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, doc, getDoc, updateDoc, addDoc, deleteDoc } from 'firebase/firestore';
 
 declare global {
   interface Window {
@@ -64,7 +64,7 @@ const BottomNav = ({ activeTab, setActiveTab }: { activeTab: Tab; setActiveTab: 
     { id: 'bookings', icon: Ticket, label: 'Bookings' },
     { id: 'expense', icon: Wallet, label: 'Expenses' },
     { id: 'journal', icon: BookOpen, label: 'Journal' },
-    { id: 'planning', icon: CheckSquare, label: 'Packing' },
+    { id: 'planning', icon: CheckSquare, label: 'Checklist' },
     { id: 'members', icon: Users, label: 'Team' },
   ];
 
@@ -920,74 +920,259 @@ const JournalTab = () => {
 };
 
 const PlanningTab = ({ user }: { user: User }) => {
-  const [todos, setTodos] = useState<{ id: string; text: string; completed: boolean }[]>([]);
-  const tripId = "europe-2026-trip"; // Temporary fixed ID
+  const [items, setItems] = useState<{ id: string; text: string; completed: boolean; type: 'mission' | 'prep'; prepCat?: string }[]>([]);
+  const [activeSubTab, setActiveSubTab] = useState<'mission' | 'prep'>('mission');
+  const [newItemText, setNewItemText] = useState('');
+  const [selectedPrepCat, setSelectedPrepCat] = useState('文件');
+  const [isAdding, setIsAdding] = useState(false);
+  const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({});
+  const tripId = "europe-2026-trip";
+
+  const prepCategories = ['文件', '衣物', '盥洗', '電子產品', '藥品', '其他'];
 
   useEffect(() => {
+    // Default all categories to expanded
+    const initialExpanded = prepCategories.reduce((acc, cat) => ({ ...acc, [cat]: true }), {});
+    setExpandedCategories(initialExpanded);
+
     const q = query(collection(db, 'trips', tripId, 'todos'));
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const items = snapshot.docs.map(doc => ({
+      const docs = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
       })) as any[];
-      setTodos(items);
+      setItems(docs);
     });
     return () => unsubscribe();
-  }, []);
+  }, [tripId]);
 
-  const toggleTodo = async (id: string, currentStatus: boolean) => {
+  const toggleCategory = (cat: string) => {
+    setExpandedCategories(prev => ({ ...prev, [cat]: !prev[cat] }));
+  };
+
+  const toggleItem = async (id: string, currentStatus: boolean) => {
     try {
-      const todoRef = doc(db, 'trips', tripId, 'todos', id);
-      await updateDoc(todoRef, { completed: !currentStatus });
+      const itemRef = doc(db, 'trips', tripId, 'todos', id);
+      await updateDoc(itemRef, { completed: !currentStatus });
     } catch (err) {
       console.error("Update error:", err);
     }
   };
 
-  const handleAddTodo = async () => {
-    const text = prompt("請輸入待辦事項:");
-    if (!text) return;
+  const handleAddItem = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!newItemText.trim() || isAdding) return;
+    
+    setIsAdding(true);
     try {
       await addDoc(collection(db, 'trips', tripId, 'todos'), {
-        tripId,
-        type: 'todo',
-        text,
+        type: activeSubTab,
+        text: newItemText.trim(),
         completed: false,
-        authorId: user.uid
+        authorId: user.uid,
+        prepCat: activeSubTab === 'prep' ? selectedPrepCat : null,
+        createdAt: new Date().toISOString()
       });
+      setNewItemText('');
     } catch (err) {
       console.error("Add error:", err);
+    } finally {
+      setIsAdding(false);
     }
   };
 
+  const handleDeleteItem = async (e: React.MouseEvent, id: string, text: string) => {
+    e.stopPropagation();
+    if (window.confirm(`確定要刪除「${text}」嗎？`)) {
+      try {
+        await deleteDoc(doc(db, 'trips', tripId, 'todos', id));
+      } catch (err) {
+        console.error("Delete error:", err);
+      }
+    }
+  };
+
+  const filteredItems = items.filter(item => item.type === activeSubTab);
+
+  // Grouping logic for Prep tab
+  const groupedPrepItems = activeSubTab === 'prep' 
+    ? prepCategories.reduce((acc, cat) => {
+        const catItems = filteredItems.filter(i => i.prepCat === cat || (!i.prepCat && cat === '其他'));
+        if (catItems.length > 0) acc[cat] = catItems;
+        return acc;
+      }, {} as Record<string, typeof filteredItems>)
+    : null;
+
   return (
-    <div id="planning-tab" className="px-6 pb-32">
-      <div className="journal-card space-y-4">
-        {todos.length === 0 && <p className="text-center py-4 text-xs text-brand-dark/40 font-bold">還沒有待辦事項 ✨</p>}
-        {todos.map((item) => (
-          <div 
-            key={item.id} 
-            className="flex items-center gap-4 py-2 group cursor-pointer"
-            onClick={() => toggleTodo(item.id, item.completed)}
-          >
-            <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${
-              item.completed ? 'bg-brand-accent border-brand-accent text-white' : 'border-brand-green'
-            }`}>
-              {item.completed && <CheckSquare size={14} />}
-            </div>
-            <span className={`flex-1 text-sm font-medium transition-all ${item.completed ? 'line-through opacity-40' : ''}`}>
-              {item.text}
-            </span>
-          </div>
-        ))}
+    <div id="checklist-tab" className="px-6 pb-32">
+      {/* Sub Tabs */}
+      <div className="flex gap-2 mb-6 bg-brand-green/20 p-1 rounded-2xl">
         <button 
-          id="add-todo" 
-          onClick={handleAddTodo}
-          className="flex items-center gap-2 text-brand-accent font-bold pt-4 text-sm hover:opacity-80"
+          onClick={() => setActiveSubTab('mission')}
+          className={`flex-1 py-2 text-[10px] font-bold uppercase tracking-wider rounded-xl transition-all ${
+            activeSubTab === 'mission' ? 'bg-white shadow-sm text-brand-accent' : 'text-brand-dark/40'
+          }`}
         >
-          <Plus size={16} />
-          新增待辦
+          Missions
         </button>
+        <button 
+          onClick={() => setActiveSubTab('prep')}
+          className={`flex-1 py-2 text-[10px] font-bold uppercase tracking-wider rounded-xl transition-all ${
+            activeSubTab === 'prep' ? 'bg-white shadow-sm text-brand-accent' : 'text-brand-dark/40'
+          }`}
+        >
+          Prep
+        </button>
+      </div>
+
+      <div className="journal-card p-4 space-y-2">
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-brand-dark/40">
+            {activeSubTab === 'mission' ? 'Journey Tasks' : 'Packing & Docs'}
+          </h3>
+          <span className="text-[9px] font-black text-brand-accent bg-brand-accent/5 px-2 py-0.5 rounded-full">
+            {filteredItems.filter(i => i.completed).length} / {filteredItems.length}
+          </span>
+        </div>
+
+        {/* Inline Add Input */}
+        <form onSubmit={handleAddItem} className="space-y-3 mb-4">
+          <div className="flex flex-wrap sm:flex-nowrap gap-2 items-stretch">
+            <input
+              type="text"
+              value={newItemText}
+              onChange={(e) => setNewItemText(e.target.value)}
+              disabled={isAdding}
+              placeholder={activeSubTab === 'mission' ? "Add task..." : "Add item..."}
+              className="w-full sm:flex-1 px-4 py-2.5 bg-brand-beige/30 rounded-xl border border-brand-green/10 focus:outline-none focus:border-brand-accent/30 font-sans text-xs transition-all h-[42px] sm:h-auto"
+            />
+            <div className={`flex gap-2 ${activeSubTab === 'prep' ? 'w-full sm:w-auto flex-1 sm:flex-none' : 'w-full sm:w-10'}`}>
+              {activeSubTab === 'prep' && (
+                <div className="relative flex-1">
+                  <select
+                    value={selectedPrepCat}
+                    onChange={(e) => setSelectedPrepCat(e.target.value)}
+                    className="w-full px-3 pr-8 h-[42px] sm:h-full bg-brand-beige/30 rounded-xl border border-brand-green/10 focus:outline-none text-[9px] font-bold uppercase tracking-wider text-brand-dark/60 appearance-none cursor-pointer"
+                  >
+                    {prepCategories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+                  </select>
+                  <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-brand-dark/20">
+                    <ChevronDown size={12} />
+                  </div>
+                </div>
+              )}
+              <button 
+                type="submit"
+                disabled={!newItemText.trim() || isAdding}
+                className={`h-[42px] rounded-xl flex items-center justify-center flex-shrink-0 transition-all ${
+                  activeSubTab === 'prep' ? 'w-10 px-2' : 'flex-1 sm:w-10 px-3 sm:px-2'
+                } ${
+                  newItemText.trim() ? 'bg-brand-accent text-white shadow-lg shadow-brand-accent/20' : 'bg-gray-200 text-gray-400'
+                }`}
+              >
+                <Plus size={18} />
+              </button>
+            </div>
+          </div>
+        </form>
+
+        <AnimatePresence mode="popLayout" initial={false}>
+          {activeSubTab === 'prep' ? (
+            Object.keys(groupedPrepItems || {}).length === 0 ? (
+              <motion.p className="text-center py-6 text-[10px] text-brand-dark/40 font-bold">No items yet ✨</motion.p>
+            ) : (
+              Object.entries(groupedPrepItems || {}).map(([category, catItems]) => (
+                <div key={category} className="mb-2 last:mb-0">
+                  <button 
+                    onClick={() => toggleCategory(category)}
+                    className="w-full flex items-center gap-2 px-1 py-1 group"
+                  >
+                    <motion.div
+                      animate={{ rotate: expandedCategories[category] ? 0 : -90 }}
+                      className="text-brand-dark/20 group-hover:text-brand-accent transition-colors"
+                    >
+                      <ChevronDown size={12} />
+                    </motion.div>
+                    <span className="text-[9px] font-black uppercase tracking-[0.2em] text-brand-dark/30 group-hover:text-brand-accent transition-colors">
+                      {category}
+                    </span>
+                    <div className="h-[1px] flex-1 bg-brand-dark/5" />
+                    <span className="text-[9px] font-bold text-brand-dark/20">({catItems.length})</span>
+                  </button>
+                  
+                  <AnimatePresence initial={false}>
+                    {expandedCategories[category] && (
+                      <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: "auto", opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        className="overflow-hidden grid grid-cols-2 gap-1.5 mt-1.5"
+                      >
+                        {catItems.map(item => (
+                          <motion.div 
+                            key={item.id} 
+                            layout
+                            className={`flex items-center gap-2 p-1.5 rounded-lg transition-all border border-transparent active:scale-[0.98] cursor-pointer ${
+                              item.completed ? 'bg-gray-50/30' : 'bg-brand-beige/20 border-brand-green/5'
+                            }`}
+                            onClick={() => toggleItem(item.id, item.completed)}
+                          >
+                            <div className={`w-4 h-4 rounded-md border flex items-center justify-center flex-shrink-0 transition-all ${
+                              item.completed ? 'bg-brand-accent border-brand-accent text-white' : 'border-brand-green/40'
+                            }`}>
+                              {item.completed && <Plus size={10} className="rotate-45" />}
+                            </div>
+                            <span className={`flex-1 text-[11px] font-medium truncate transition-all ${item.completed ? 'line-through opacity-30 text-brand-dark/50' : 'text-brand-dark'}`}>
+                              {item.text}
+                            </span>
+                            <button 
+                              onClick={(e) => handleDeleteItem(e, item.id, item.text)} 
+                              className="p-1 text-brand-dark/10 hover:text-red-400 transition-colors"
+                            >
+                              <Trash2 size={12} />
+                            </button>
+                          </motion.div>
+                        ))}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              ))
+            )
+          ) : (
+            filteredItems.length === 0 ? (
+              <motion.p className="text-center py-6 text-[10px] text-brand-dark/40 font-bold">No tasks yet ✨</motion.p>
+            ) : (
+              <div className="space-y-1.5">
+                {filteredItems.sort((a: any, b: any) => (a.createdAt > b.createdAt ? -1 : 1)).map((item) => (
+                  <motion.div 
+                    key={item.id} 
+                    layout
+                    className={`flex items-center gap-2.5 p-2 rounded-xl transition-all border border-transparent active:scale-[0.98] cursor-pointer ${
+                      item.completed ? 'bg-gray-50/50' : 'bg-white shadow-sm border-brand-green/10'
+                    }`}
+                    onClick={() => toggleItem(item.id, item.completed)}
+                  >
+                    <div className={`w-5 h-5 rounded-lg border-2 flex items-center justify-center flex-shrink-0 transition-all ${
+                      item.completed ? 'bg-brand-accent border-brand-accent text-white' : 'border-brand-green'
+                    }`}>
+                      {item.completed && <Plus size={12} className="rotate-45" />}
+                    </div>
+                    <span className={`flex-1 text-xs font-medium transition-all ${item.completed ? 'line-through opacity-30 text-brand-dark/50' : 'text-brand-dark'}`}>
+                      {item.text}
+                    </span>
+                    <button 
+                      onClick={(e) => handleDeleteItem(e, item.id, item.text)} 
+                      className="p-1.5 text-brand-dark/10 hover:text-red-400 hover:bg-red-50 rounded-lg transition-colors"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </motion.div>
+                ))}
+              </div>
+            )
+          )}
+        </AnimatePresence>
       </div>
     </div>
   );
@@ -1081,7 +1266,7 @@ export default function App() {
       case 'bookings': return '預訂憑證';
       case 'expense': return '旅遊記帳簿';
       case 'journal': return '旅行回憶錄';
-      case 'planning': return '行前備事清單';
+      case 'planning': return 'Checklist';
       case 'members': return '冒險夥伴們';
     }
   };
