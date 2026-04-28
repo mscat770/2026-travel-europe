@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
+import firebaseConfig from '../firebase-applet-config.json';
 import { 
   Calendar, 
   Ticket, 
@@ -24,7 +25,8 @@ import {
   Search,
   Pencil,
   Trash2,
-  Paperclip
+  Paperclip,
+  ExternalLink
 } from 'lucide-react';
 import { 
   auth, 
@@ -135,8 +137,8 @@ const ScheduleTab = ({ user }: { user: User }) => {
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState<any>(null);
   const [editingEvent, setEditingEvent] = useState<any>(null);
+  const [isSaving, setIsSaving] = useState(false);
   const locationInputRef = useRef<HTMLInputElement>(null);
-  const autocompleteRef = useRef<any>(null);
   
   // Modal State
   const [formData, setFormData] = useState({
@@ -196,6 +198,9 @@ const ScheduleTab = ({ user }: { user: User }) => {
 
   const handleSave = async (e: any) => {
     e.preventDefault();
+    if (isSaving) return;
+    
+    setIsSaving(true);
     try {
       const icon = categories.find(c => c.value === formData.cat)?.icon || 'MapPin';
       const eventPayload = {
@@ -215,8 +220,9 @@ const ScheduleTab = ({ user }: { user: User }) => {
       } else {
         await addEvent(eventPayload);
       }
+      
+      // Close and Reset ONLY after successful save
       setIsModalOpen(false);
-      // Reset form data after closing
       setFormData({
         title: '',
         time: '12:00',
@@ -229,6 +235,8 @@ const ScheduleTab = ({ user }: { user: User }) => {
     } catch (err) {
       console.error(err);
       alert('Error saving event.');
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -272,49 +280,6 @@ const ScheduleTab = ({ user }: { user: User }) => {
     
     return () => unsubscribe();
   }, [selectedDay]);
-
-  useEffect(() => {
-    if (isModalOpen && locationInputRef.current) {
-      // Small delay to ensure the modal animation is somewhat stable or the element is fully in DOM
-      const timer = setTimeout(() => {
-        if (!window.google || !window.google.maps || !window.google.maps.places) {
-          console.warn("Google Maps API not loaded properly");
-          return;
-        }
-
-        autocompleteRef.current = new window.google.maps.places.Autocomplete(locationInputRef.current, {
-          types: ['geocode', 'establishment'],
-        });
-
-        autocompleteRef.current.addListener('place_changed', () => {
-          const place = autocompleteRef.current.getPlace();
-          if (place.name || place.formatted_address) {
-            setFormData(prev => ({
-              ...prev,
-              location: place.formatted_address || place.name
-            }));
-          }
-        });
-
-        // Prevent form submission on Enter
-        const handleKeyDown = (e: KeyboardEvent) => {
-          if (e.key === 'Enter') {
-            e.preventDefault();
-          }
-        };
-        locationInputRef.current?.addEventListener('keydown', handleKeyDown);
-
-        return () => {
-          locationInputRef.current?.removeEventListener('keydown', handleKeyDown);
-          if (window.google && window.google.maps && window.google.maps.event) {
-            window.google.maps.event.clearInstanceListeners(autocompleteRef.current);
-          }
-        };
-      }, 300);
-
-      return () => clearTimeout(timer);
-    }
-  }, [isModalOpen]);
 
   return (
     <div id="schedule-tab" className="pb-32">
@@ -434,9 +399,21 @@ const ScheduleTab = ({ user }: { user: User }) => {
                     <div className="flex flex-col gap-1 min-w-0">
                       <h3 className="text-base font-bold text-brand-dark font-display leading-tight truncate">{item.title}</h3>
                       {item.location && (
-                        <div className="flex items-center gap-1 text-brand-dark/40 text-[10px] font-medium font-sans">
-                          <MapPin size={10} className="flex-shrink-0 opacity-40" />
-                          <span className="truncate">{item.location}</span>
+                        <div className="flex items-center gap-2 text-brand-dark/40 text-[10px] font-medium font-sans">
+                          <div className="flex items-center gap-1 min-w-0">
+                            <MapPin size={10} className="flex-shrink-0 opacity-40" />
+                            <span className="truncate">{item.location}</span>
+                          </div>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(item.location)}`, '_blank');
+                            }}
+                            className="flex-shrink-0 text-brand-accent/60 hover:text-brand-accent transition-colors"
+                            title="View on Google Maps"
+                          >
+                            <ExternalLink size={10} />
+                          </button>
                         </div>
                       )}
                     </div>
@@ -536,12 +513,11 @@ const ScheduleTab = ({ user }: { user: User }) => {
                 <div className="space-y-1">
                   <label className="text-[10px] font-bold uppercase tracking-widest text-brand-dark/40 ml-1">Location</label>
                   <input
-                    ref={locationInputRef}
                     type="text"
                     value={formData.location}
                     onChange={(e) => setFormData({ ...formData, location: e.target.value })}
                     className="w-full px-4 py-3 bg-brand-beige/50 rounded-xl border border-brand-green/20 focus:outline-none focus:border-brand-accent font-sans text-sm"
-                    placeholder="Google Maps location"
+                    placeholder="Enter location"
                   />
                 </div>
 
@@ -569,9 +545,10 @@ const ScheduleTab = ({ user }: { user: User }) => {
 
                 <button
                   type="submit"
-                  className="w-full py-4 bg-brand-accent text-white rounded-2xl font-bold font-display uppercase tracking-wider shadow-lg shadow-brand-accent/20 hover:scale-[1.02] transition-all mt-4"
+                  disabled={isSaving}
+                  className={`w-full py-4 bg-brand-accent text-white rounded-2xl font-bold font-display uppercase tracking-wider shadow-lg shadow-brand-accent/20 transition-all mt-4 ${isSaving ? 'opacity-70 cursor-not-allowed scale-[0.98]' : 'hover:scale-[1.02]'}`}
                 >
-                  {editingEvent ? 'Save Changes' : 'Create Event'}
+                  {isSaving ? 'Saving...' : (editingEvent ? 'Save Changes' : 'Create Event')}
                 </button>
               </form>
             </motion.div>

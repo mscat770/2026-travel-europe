@@ -2,22 +2,10 @@ import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import { getFirestore, doc, collection, query, where, onSnapshot, addDoc, updateDoc, getDocs, deleteDoc, serverTimestamp } from 'firebase/firestore';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-
-const firebaseConfig = {
-  apiKey: 'AIzaSyACbl1m5AvjaK6-lzOHQaPNhi1B2K3dYsE',
-  authDomain: 'gen-lang-client-0972957793.firebaseapp.com',
-  projectId: 'gen-lang-client-0972957793',
-  storageBucket: 'gen-lang-client-0972957793.firebasestorage.app',
-  messagingSenderId: '432237418767',
-  appId: '1:432237418767:web:914ba09a83145fc389467a',
-  measurementId: '',
-};
-
-const databaseId = '(default)';
-console.log("[Firebase] Switching to (default) Database ID for testing rules.");
+import firebaseConfig from '../../firebase-applet-config.json';
 
 const app = initializeApp(firebaseConfig);
-export const db = getFirestore(app, databaseId);
+export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
 export const auth = getAuth(app);
 export const storage = getStorage(app);
 
