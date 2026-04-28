@@ -4,10 +4,11 @@ import firebaseConfig from '../firebase-applet-config.json';
 import { 
   Calendar, 
   Ticket, 
-  Wallet, 
+  Coins, 
   BookOpen, 
-  CheckSquare, 
+  ListChecks, 
   StickyNote,
+  Compass,
   Plus,
   MapPin,
   Clock,
@@ -60,32 +61,53 @@ type Tab = 'schedule' | 'bookings' | 'expense' | 'journal' | 'planning' | 'notes
 // --- Shared Components ---
 const BottomNav = ({ activeTab, setActiveTab }: { activeTab: Tab; setActiveTab: (t: Tab) => void }) => {
   const tabs: { id: Tab; icon: any; label: string }[] = [
-    { id: 'schedule', icon: Calendar, label: 'Schedule' },
-    { id: 'bookings', icon: Ticket, label: 'Bookings' },
-    { id: 'expense', icon: Wallet, label: 'Expenses' },
-    { id: 'journal', icon: BookOpen, label: 'Journal' },
-    { id: 'planning', icon: CheckSquare, label: 'Checklist' },
+    { id: 'schedule', icon: MapPin, label: 'Schedule' },
+    { id: 'bookings', icon: Plane, label: 'Bookings' },
+    { id: 'expense', icon: Coins, label: 'Expenses' },
+    { id: 'journal', icon: Pencil, label: 'Journal' },
+    { id: 'planning', icon: ListChecks, label: 'Checklist' },
     { id: 'notes', icon: StickyNote, label: 'Notes' },
   ];
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 bg-white/80 backdrop-blur-md border-t border-brand-green px-4 pb-6 pt-2 flex justify-between items-center z-50">
+    <nav className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-xl border-t border-brand-green/5 px-2 pb-6 pt-3 flex justify-around items-center z-50 shadow-[0_-5px_20px_-10px_rgba(0,0,0,0.05)]">
       {tabs.map((tab) => {
         const Icon = tab.icon;
         const isActive = activeTab === tab.id;
         return (
-          <button
+          <button 
             key={tab.id}
             id={`nav-${tab.id}`}
             onClick={() => setActiveTab(tab.id)}
-            className={`flex flex-col items-center gap-1 transition-all duration-300 ${
-              isActive ? 'text-brand-accent scale-110' : 'text-brand-dark/40'
-            }`}
+            className="flex-1 flex flex-col items-center group relative outline-none"
           >
-            <div className={`p-2 rounded-full transition-colors ${isActive ? 'bg-brand-green/20' : ''}`}>
-              <Icon size={24} strokeWidth={isActive ? 2.5 : 2} />
+            <div className={`relative w-12 h-9 flex items-center justify-center rounded-xl transition-colors duration-200 ${
+              isActive ? 'bg-brand-accent/10' : 'hover:bg-brand-dark/5'
+            }`}>
+              <Icon 
+                size={20} 
+                strokeWidth={2} 
+                className={`transition-colors duration-200 ${
+                  isActive ? 'text-brand-accent' : 'text-brand-dark/25 group-hover:text-brand-dark/40'
+                }`}
+                fill={isActive ? "currentColor" : "none"}
+                fillOpacity={isActive ? 0.15 : 0}
+              />
+              <div className={`absolute inset-0 rounded-xl border transition-opacity duration-200 ${
+                isActive ? 'border-brand-accent/20 opacity-100' : 'border-transparent opacity-0'
+              }`} />
             </div>
-            <span className="text-[10px] font-bold font-display">{tab.label}</span>
+            
+            <div className="h-4 flex flex-col items-center justify-center mt-1">
+              <span className={`text-[9px] font-[900] uppercase tracking-wider font-display transition-colors duration-200 ${
+                isActive ? 'text-brand-dark' : 'text-brand-dark/30'
+              }`}>
+                {tab.label}
+              </span>
+              <div className={`w-1 h-1 mt-0.5 bg-brand-accent rounded-full transition-opacity duration-200 ${
+                isActive ? 'opacity-100' : 'opacity-0'
+              }`} />
+            </div>
           </button>
         );
       })}
