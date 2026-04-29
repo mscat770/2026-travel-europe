@@ -52,18 +52,16 @@ export const subscribeToEvents = (dayIndex: number, callback: (events: any[]) =>
       ...doc.data()
     }));
     items.sort((a: any, b: any) => {
-      // Priority 1: No time items go to the bottom
+      // Manual order is now the primary source of truth for reordering
+      const orderA = a.order ?? 0;
+      const orderB = b.order ?? 0;
+      if (orderA !== orderB) return orderA - orderB;
+      
+      // Fallback: If order is same (e.g. new items), sort by noTime then time
       if (a.noTime && !b.noTime) return 1;
       if (!a.noTime && b.noTime) return -1;
       
-      // Priority 2: If both have time, compare time
-      if (!a.noTime && !b.noTime) {
-        const timeCompare = (a.time || '').localeCompare(b.time || '');
-        if (timeCompare !== 0) return timeCompare;
-      }
-      
-      // Priority 3: Fallback to order
-      return (a.order || 0) - (b.order || 0);
+      return (a.time || '').localeCompare(b.time || '');
     });
     callback(items);
   }, (error) => {

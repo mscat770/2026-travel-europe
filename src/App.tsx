@@ -170,7 +170,9 @@ const ItineraryItem = ({
   handleOpenEdit, 
   handleDeleteEvent, 
   setSelectedEvent, 
-  setIsDetailOpen 
+  setIsDetailOpen,
+  onDragStart,
+  onDragEnd,
 }: { 
   key?: any;
   item: any; 
@@ -178,30 +180,49 @@ const ItineraryItem = ({
   handleDeleteEvent: (id: string) => any; 
   setSelectedEvent: (e: any) => void; 
   setIsDetailOpen: (o: boolean) => void;
+  onDragStart: () => void;
+  onDragEnd: () => void;
 }) => {
   const dragControls = useDragControls();
+  const [isLongPressed, setIsLongPressed] = useState(false);
   const Icon = iconMap[item.icon] || MapPin;
+  const longPressTimer = useRef<NodeJS.Timeout | null>(null);
 
-  const handleDragTrigger = (event: React.PointerEvent) => {
-    // We only trigger drag after a short hold (180ms)
-    // This allows normal scrolling to occur if the user just swipes up/down
-    const timer = setTimeout(() => {
-      dragControls.start(event);
-    }, 180);
+  const startLongPress = (event: React.PointerEvent) => {
+    if (longPressTimer.current) clearTimeout(longPressTimer.current);
 
-    const cancel = () => {
-      clearTimeout(timer);
-      window.removeEventListener('pointerup', cancel);
-      window.removeEventListener('pointermove', cancel);
-    };
+    const startX = event.clientX;
+    const startY = event.clientY;
 
-    window.addEventListener('pointerup', cancel);
-    window.addEventListener('pointermove', (e) => {
-      // If they move too much before the timer, it's a scroll or swipe, so cancel the drag start
-      if (Math.abs(e.movementX) > 3 || Math.abs(e.movementY) > 3) {
+    const onMove = (e: PointerEvent) => {
+      if (Math.abs(e.clientX - startX) > 10 || Math.abs(e.clientY - startY) > 10) {
         cancel();
       }
-    });
+    };
+
+    const cancel = () => {
+      if (longPressTimer.current) clearTimeout(longPressTimer.current);
+      setIsLongPressed(false);
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', cancel);
+      window.removeEventListener('pointercancel', cancel);
+    };
+
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', cancel);
+    window.addEventListener('pointercancel', cancel);
+
+    longPressTimer.current = setTimeout(() => {
+      setIsLongPressed(true);
+      onDragStart();
+      dragControls.start(event);
+      if ('vibrate' in navigator) {
+        navigator.vibrate(40);
+      }
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', cancel);
+      window.removeEventListener('pointercancel', cancel);
+    }, 350); 
   };
 
   return (
@@ -210,19 +231,27 @@ const ItineraryItem = ({
       value={item}
       dragListener={false}
       dragControls={dragControls}
-      className="relative overflow-visible"
+      onDragEnd={() => {
+        setIsLongPressed(false);
+        onDragEnd();
+      }}
+      className={`relative overflow-visible select-none touch-none ${isLongPressed ? 'z-50' : 'z-0'}`}
+      onPointerDown={startLongPress}
       whileDrag={{ 
-        opacity: 0.9, 
-        scale: 1.02, 
-        boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)", 
-        zIndex: 50 
+        scale: 1.05, 
+        zIndex: 100,
+        opacity: 0.95,
       }}
     >
       <div
-        className="relative overflow-hidden w-full bg-white rounded-[1.5rem] shadow-sm border border-brand-green/10 transition-all hover:shadow-md active:shadow-inner cursor-pointer"
+        className={`relative overflow-hidden w-full bg-white rounded-[1.5rem] shadow-sm border transition-all duration-200 ${
+          isLongPressed ? 'border-brand-accent shadow-2xl ring-2 ring-brand-accent/20' : 'border-brand-green/10 shadow-sm'
+        }`}
         onClick={() => {
-          setSelectedEvent(item);
-          setIsDetailOpen(true);
+          if (!isLongPressed) {
+            setSelectedEvent(item);
+            setIsDetailOpen(true);
+          }
         }}
       >
         <div className={`absolute left-0 top-0 bottom-0 w-1 ${item.color?.split(' ')[1]?.replace('text-', 'bg-') || 'bg-brand-accent'}`} />
@@ -230,12 +259,8 @@ const ItineraryItem = ({
         <div className="py-4 pr-4 pl-3 flex flex-col gap-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              {/* Drag Handle & Long-Press Trigger */}
               <div 
-                onPointerDown={handleDragTrigger}
-                className="p-1 text-brand-dark/10 hover:text-brand-accent/40 cursor-grab active:cursor-grabbing transition-colors"
-                onClick={(e) => e.stopPropagation()}
-                title="Hold to drag to reorder"
+                className={`p-1 transition-colors ${isLongPressed ? 'text-brand-accent animate-pulse' : 'text-brand-dark/10'}`}
               >
                 <GripVertical size={16} />
               </div>
@@ -307,7 +332,10 @@ const ScheduleTab = ({ user }: { user: User }) => {
   const [selectedEvent, setSelectedEvent] = useState<any>(null);
   const [editingEvent, setEditingEvent] = useState<any>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+  const dragSyncTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const locationInputRef = useRef<HTMLInputElement>(null);
+  const eventsRef = useRef<any[]>([]);
   
   // Modal State
   const [formData, setFormData] = useState({
@@ -513,14 +541,32 @@ const ScheduleTab = ({ user }: { user: User }) => {
   }, [user]);
 
   useEffect(() => {
+    eventsRef.current = events;
+  }, [events]);
+
+  useEffect(() => {
     setLoading(true);
     const unsubscribe = subscribeToEvents(selectedDay, (items) => {
-      setEvents(items);
+      if (!isDragging) {
+        setEvents(items);
+      }
       setLoading(false);
     });
     
     return () => unsubscribe();
-  }, [selectedDay]);
+  }, [selectedDay, isDragging]);
+
+  const handleReorder = (newOrder: any[]) => {
+    setEvents(newOrder);
+  };
+
+  const syncReorderToFirebase = (finalOrder: any[]) => {
+    finalOrder.forEach((item, index) => {
+      if (item.order !== index) {
+        updateEvent(item.id, { order: index });
+      }
+    });
+  };
 
   return (
     <div id="schedule-tab" className="pb-32">
@@ -595,15 +641,12 @@ const ScheduleTab = ({ user }: { user: User }) => {
             <p className="text-xs font-bold uppercase tracking-widest">No events planned</p>
           </div>
         ) : (
-          <Reorder.Group axis="y" values={events} onReorder={(newOrder) => {
-            setEvents(newOrder);
-            // Bulk update order in background
-            newOrder.forEach((item, index) => {
-               if (item.order !== index) {
-                 updateEvent(item.id, { order: index });
-               }
-            });
-          }} className="space-y-4">
+          <Reorder.Group 
+            axis="y" 
+            values={events} 
+            onReorder={handleReorder} 
+            className="space-y-4"
+          >
             {events.map((item) => (
               <ItineraryItem
                 key={item.id}
@@ -612,6 +655,14 @@ const ScheduleTab = ({ user }: { user: User }) => {
                 handleDeleteEvent={handleDeleteEvent}
                 setSelectedEvent={setSelectedEvent}
                 setIsDetailOpen={setIsDetailOpen}
+                onDragStart={() => setIsDragging(true)}
+                onDragEnd={() => {
+                  syncReorderToFirebase(eventsRef.current);
+                  if (dragSyncTimeoutRef.current) clearTimeout(dragSyncTimeoutRef.current);
+                  dragSyncTimeoutRef.current = setTimeout(() => {
+                    setIsDragging(false);
+                  }, 1200);
+                }}
               />
             ))}
           </Reorder.Group>
