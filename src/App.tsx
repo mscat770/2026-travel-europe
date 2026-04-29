@@ -61,12 +61,12 @@ type Tab = 'schedule' | 'bookings' | 'expense' | 'journal' | 'planning' | 'notes
 // --- Shared Components ---
 const BottomNav = ({ activeTab, setActiveTab }: { activeTab: Tab; setActiveTab: (t: Tab) => void }) => {
   const tabs: { id: Tab; icon: any; label: string }[] = [
-    { id: 'schedule', icon: MapPin, label: 'Schedule' },
-    { id: 'bookings', icon: Plane, label: 'Bookings' },
-    { id: 'expense', icon: Coins, label: 'Expenses' },
-    { id: 'journal', icon: Pencil, label: 'Journal' },
-    { id: 'planning', icon: ListChecks, label: 'Checklist' },
-    { id: 'notes', icon: StickyNote, label: 'Notes' },
+    { id: 'schedule', icon: MapPin, label: 'SCHEDULE' },
+    { id: 'bookings', icon: Plane, label: 'BOOKINGS' },
+    { id: 'expense', icon: Coins, label: 'EXPENSES' },
+    { id: 'journal', icon: Pencil, label: 'JOURNAL' },
+    { id: 'planning', icon: ListChecks, label: 'CHECKLIST' },
+    { id: 'notes', icon: StickyNote, label: 'NOTES' },
   ];
 
   return (
@@ -591,7 +591,7 @@ const ScheduleTab = ({ user }: { user: User }) => {
 
               <form onSubmit={handleSave} className="space-y-3 sm:space-y-4">
                 <div className="space-y-1">
-                  <label className="text-[10px] font-bold uppercase tracking-widest text-brand-dark/40 ml-1">Title</label>
+                  <label className="text-[10px] font-bold uppercase tracking-widest text-brand-dark/40 ml-1">TITLE</label>
                   <input
                     required
                     type="text"
@@ -602,53 +602,52 @@ const ScheduleTab = ({ user }: { user: User }) => {
                   />
                 </div>
 
-                <div className="grid grid-cols-2 sm:flex sm:flex-nowrap gap-3 sm:gap-4 items-end">
-                  <div className="space-y-1">
-                    <div className="flex justify-between items-center mb-1">
-                      <label className="text-[10px] font-bold uppercase tracking-widest text-brand-dark/40 ml-1">Time</label>
-                      <label className="flex items-center gap-1.5 cursor-pointer group">
-                        <input 
-                          type="checkbox" 
-                          checked={formData.noTime} 
-                          onChange={(e) => setFormData({ ...formData, noTime: e.target.checked })}
-                          className="sr-only"
-                        />
-                        <div className={`w-7 h-4 rounded-full transition-colors relative ${formData.noTime ? 'bg-brand-accent' : 'bg-brand-dark/10'}`}>
-                          <div className={`absolute top-0.5 left-0.5 w-3 h-3 bg-white rounded-full transition-transform ${formData.noTime ? 'translate-x-3' : ''}`} />
-                        </div>
-                        <span className="text-[9px] font-bold text-brand-dark/30 group-hover:text-brand-accent transition-colors">NO TIME</span>
-                      </label>
-                    </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold uppercase tracking-widest text-brand-dark/40 ml-1">TIME</label>
+                  <div className="flex items-center gap-3">
                     <input
                       required={!formData.noTime}
                       disabled={formData.noTime}
                       type="time"
                       value={formData.time}
                       onChange={(e) => setFormData({ ...formData, time: e.target.value })}
-                      className={`w-full h-[44px] sm:h-[48px] px-3 sm:px-4 py-2 bg-brand-beige/50 rounded-xl border border-brand-green/20 focus:outline-none focus:border-brand-accent font-sans text-sm transition-opacity ${formData.noTime ? 'opacity-30' : 'opacity-100'}`}
+                      className={`flex-1 h-[40px] px-4 bg-brand-beige/50 rounded-xl border border-brand-green/20 focus:outline-none focus:border-brand-accent font-sans text-sm transition-opacity ${formData.noTime ? 'opacity-20' : 'opacity-100'}`}
                     />
-                  </div>
-                  <div className="flex-1 space-y-1">
-                    <label className="text-[10px] font-bold uppercase tracking-widest text-brand-dark/40 ml-1">Category</label>
-                    <div className="relative">
-                      <select
-                        value={formData.cat}
-                        onChange={(e) => setFormData({ ...formData, cat: e.target.value })}
-                        className="w-full h-[44px] sm:h-[48px] px-3 sm:px-4 py-2 bg-brand-beige/50 rounded-xl border border-brand-green/20 focus:outline-none focus:border-brand-accent font-sans text-sm appearance-none cursor-pointer"
-                      >
-                        {categories.map(cat => (
-                          <option key={cat.value} value={cat.value}>{cat.label}</option>
-                        ))}
-                      </select>
-                      <div className="absolute right-3 sm:right-4 top-1/2 -translate-y-1/2 pointer-events-none text-brand-dark/30">
-                        <ChevronDown size={14} />
+                    <label className="flex items-center gap-2 cursor-pointer group flex-shrink-0">
+                      <input 
+                        type="checkbox" 
+                        checked={formData.noTime} 
+                        onChange={(e) => setFormData({ ...formData, noTime: e.target.checked })}
+                        className="sr-only"
+                      />
+                      <div className={`w-8 h-4.5 rounded-full transition-colors relative ${formData.noTime ? 'bg-brand-accent' : 'bg-brand-dark/10'}`}>
+                        <div className={`absolute top-0.5 left-0.5 w-3.5 h-3.5 bg-white rounded-full transition-transform ${formData.noTime ? 'translate-x-3.5' : ''}`} />
                       </div>
+                      <span className="text-[10px] font-bold text-brand-dark/30 group-hover:text-brand-accent transition-colors">NO TIME</span>
+                    </label>
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold uppercase tracking-widest text-brand-dark/40 ml-1">CATEGORY</label>
+                  <div className="relative">
+                    <select
+                      value={formData.cat}
+                      onChange={(e) => setFormData({ ...formData, cat: e.target.value })}
+                      className="w-full h-[44px] px-4 bg-brand-beige/50 rounded-xl border border-brand-green/20 focus:outline-none focus:border-brand-accent font-sans text-sm appearance-none cursor-pointer"
+                    >
+                      {categories.map(cat => (
+                        <option key={cat.value} value={cat.value}>{cat.label}</option>
+                      ))}
+                    </select>
+                    <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-brand-dark/30">
+                      <ChevronDown size={14} />
                     </div>
                   </div>
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-[10px] font-bold uppercase tracking-widest text-brand-dark/40 ml-1">Location</label>
+                  <label className="text-[10px] font-bold uppercase tracking-widest text-brand-dark/40 ml-1">LOCATION</label>
                   <input
                     type="text"
                     value={formData.location}
@@ -659,7 +658,7 @@ const ScheduleTab = ({ user }: { user: User }) => {
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-[10px] font-bold uppercase tracking-widest text-brand-dark/40 ml-1">Notes</label>
+                  <label className="text-[10px] font-bold uppercase tracking-widest text-brand-dark/40 ml-1">NOTES</label>
                   <textarea
                     rows={2}
                     value={formData.desc}
@@ -670,7 +669,7 @@ const ScheduleTab = ({ user }: { user: User }) => {
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-[10px] font-bold uppercase tracking-widest text-brand-dark/40 ml-1">Attachment Link (URL)</label>
+                  <label className="text-[10px] font-bold uppercase tracking-widest text-brand-dark/40 ml-1">ATTACHMENT LINK (URL)</label>
                   <input
                     type="url"
                     value={formData.link}
