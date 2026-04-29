@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { motion, AnimatePresence, Reorder } from 'motion/react';
+import { motion, AnimatePresence, Reorder, useDragControls } from 'motion/react';
 import firebaseConfig from '../firebase-applet-config.json';
 import { 
   Calendar, 
@@ -28,7 +28,8 @@ import {
   Trash2,
   Paperclip,
   ExternalLink,
-  ChevronDown
+  ChevronDown,
+  GripVertical
 } from 'lucide-react';
 import { 
   auth, 
@@ -149,6 +150,151 @@ const Header = ({ title, subtitle, avatars }: { title: string; subtitle?: string
     <div className="w-full border-t border-dashed border-gray-300 mt-3 opacity-60" />
   </header>
 );
+
+// --- Helpers ---
+const iconMap: Record<string, any> = {
+  'Plane': Plane,
+  'Hotel': Hotel,
+  'MapPin': MapPin,
+  'Utensils': Utensils,
+  'Camera': Camera,
+  'ShoppingCart': Search,
+  'Pencil': Pencil,
+  'Coins': Coins,
+  'ListChecks': ListChecks,
+  'StickyNote': StickyNote
+};
+
+const ItineraryItem = ({ 
+  item, 
+  handleOpenEdit, 
+  handleDeleteEvent, 
+  setSelectedEvent, 
+  setIsDetailOpen 
+}: { 
+  key?: any;
+  item: any; 
+  handleOpenEdit: (e: any) => void; 
+  handleDeleteEvent: (id: string) => any; 
+  setSelectedEvent: (e: any) => void; 
+  setIsDetailOpen: (o: boolean) => void;
+}) => {
+  const dragControls = useDragControls();
+  const Icon = iconMap[item.icon] || MapPin;
+
+  const handleDragTrigger = (event: React.PointerEvent) => {
+    // We only trigger drag after a short hold (180ms)
+    // This allows normal scrolling to occur if the user just swipes up/down
+    const timer = setTimeout(() => {
+      dragControls.start(event);
+    }, 180);
+
+    const cancel = () => {
+      clearTimeout(timer);
+      window.removeEventListener('pointerup', cancel);
+      window.removeEventListener('pointermove', cancel);
+    };
+
+    window.addEventListener('pointerup', cancel);
+    window.addEventListener('pointermove', (e) => {
+      // If they move too much before the timer, it's a scroll or swipe, so cancel the drag start
+      if (Math.abs(e.movementX) > 3 || Math.abs(e.movementY) > 3) {
+        cancel();
+      }
+    });
+  };
+
+  return (
+    <Reorder.Item
+      key={item.id}
+      value={item}
+      dragListener={false}
+      dragControls={dragControls}
+      className="relative overflow-visible"
+      whileDrag={{ 
+        opacity: 0.9, 
+        scale: 1.02, 
+        boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)", 
+        zIndex: 50 
+      }}
+    >
+      <div
+        className="relative overflow-hidden w-full bg-white rounded-[1.5rem] shadow-sm border border-brand-green/10 transition-all hover:shadow-md active:shadow-inner cursor-pointer"
+        onClick={() => {
+          setSelectedEvent(item);
+          setIsDetailOpen(true);
+        }}
+      >
+        <div className={`absolute left-0 top-0 bottom-0 w-1 ${item.color?.split(' ')[1]?.replace('text-', 'bg-') || 'bg-brand-accent'}`} />
+        
+        <div className="py-4 pr-4 pl-3 flex flex-col gap-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              {/* Drag Handle & Long-Press Trigger */}
+              <div 
+                onPointerDown={handleDragTrigger}
+                className="p-1 text-brand-dark/10 hover:text-brand-accent/40 cursor-grab active:cursor-grabbing transition-colors"
+                onClick={(e) => e.stopPropagation()}
+                title="Hold to drag to reorder"
+              >
+                <GripVertical size={16} />
+              </div>
+
+              {!item.noTime && (
+                <div className="px-2 h-5 flex items-center justify-center bg-gray-50 rounded-lg">
+                  <Clock size={10} className="text-brand-dark/30 mr-1" />
+                  <span className="text-[10px] font-bold text-brand-dark/70 font-display leading-none">{item.time}</span>
+                </div>
+              )}
+              <div className={`px-2 h-5 flex items-center justify-center rounded-lg border border-current/10 ${item.color || 'bg-brand-green/10 text-brand-accent'}`}>
+                <span className="text-[9px] font-bold uppercase tracking-wider font-display leading-none">{item.cat === 'SIGHTSEEING' ? 'SIGHTS' : (item.cat || 'Activity')}</span>
+              </div>
+            </div>
+            <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
+              <button 
+                onClick={() => handleOpenEdit(item)}
+                className="text-brand-dark/15 hover:text-brand-accent transition-all p-1.5 hover:bg-brand-accent/5 rounded-lg"
+                title="Edit"
+              >
+                <Pencil size={12} />
+              </button>
+              <button 
+                onClick={() => handleDeleteEvent(item.id)}
+                className="text-brand-dark/15 hover:text-red-400 transition-all p-1.5 hover:bg-red-50 rounded-lg"
+                title="Delete"
+              >
+                <Trash2 size={12} />
+              </button>
+            </div>
+          </div>
+
+          <div className="flex gap-3 items-start pl-2">
+            <div className={`flex-shrink-0 pt-0.5 ${item.color?.split(' ')[1] || 'text-brand-accent'} opacity-80`}>
+              <Icon size={20} strokeWidth={2.5} />
+            </div>
+            <div className="flex flex-col gap-1 min-w-0">
+              <h3 className="text-base font-bold text-brand-dark font-display leading-tight truncate">{item.title}</h3>
+              {item.location && (
+                <div className="flex items-center gap-2 text-brand-dark/40 text-[10px] font-medium font-sans">
+                  <div className="flex items-center gap-1 min-w-0">
+                    <MapPin size={10} className="flex-shrink-0 opacity-40" />
+                    <span className="truncate">{item.location}</span>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {item.desc && (
+            <div className="ml-2 bg-gray-50/30 rounded-xl px-3 py-2 border border-gray-100/50">
+              <p className="text-[10px] leading-relaxed text-brand-dark/40 font-sans italic line-clamp-1">{item.desc}</p>
+            </div>
+          )}
+        </div>
+      </div>
+    </Reorder.Item>
+  );
+};
 
 // --- Tabs Implementation ---
 
@@ -345,16 +491,6 @@ const ScheduleTab = ({ user }: { user: User }) => {
     }
   };
 
-  // Map strings to Lucide components
-  const iconMap: Record<string, any> = {
-    'Plane': Plane,
-    'Hotel': Hotel,
-    'MapPin': MapPin,
-    'Utensils': Utensils,
-    'Camera': Camera,
-    'ShoppingCart': Search
-  };
-
   // Generate dates from May 21 to June 6
   const generateDates = () => {
     const dates = [];
@@ -468,82 +604,16 @@ const ScheduleTab = ({ user }: { user: User }) => {
                }
             });
           }} className="space-y-4">
-            {events.map((item) => {
-              const Icon = iconMap[item.icon] || MapPin;
-              return (
-                <Reorder.Item
-                  key={item.id}
-                  value={item}
-                  className="relative overflow-visible cursor-grab active:cursor-grabbing"
-                  whileDrag={{ opacity: 0.9, scale: 1.02, boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)", zIndex: 50 }}
-                >
-                  <div
-                    className="relative overflow-hidden w-full bg-white rounded-[1.5rem] shadow-sm border border-brand-green/10 transition-all hover:shadow-md active:shadow-inner"
-                    onClick={() => {
-                      setSelectedEvent(item);
-                      setIsDetailOpen(true);
-                    }}
-                  >
-                    <div className={`absolute left-0 top-0 bottom-0 w-1 ${item.color?.split(' ')[1]?.replace('text-', 'bg-') || 'bg-brand-accent'}`} />
-                    
-                    <div className="py-4 pr-4 pl-5 flex flex-col gap-3">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          {!item.noTime && (
-                            <div className="px-2 h-5 flex items-center justify-center bg-gray-50 rounded-lg">
-                              <Clock size={10} className="text-brand-dark/30 mr-1" />
-                              <span className="text-[10px] font-bold text-brand-dark/70 font-display leading-none">{item.time}</span>
-                            </div>
-                          )}
-                          <div className={`px-2 h-5 flex items-center justify-center rounded-lg border border-current/10 ${item.color || 'bg-brand-green/10 text-brand-accent'}`}>
-                            <span className="text-[9px] font-bold uppercase tracking-wider font-display leading-none">{item.cat === 'SIGHTSEEING' ? 'SIGHTS' : (item.cat || 'Activity')}</span>
-                          </div>
-                        </div>
-                        <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
-                          <button 
-                            onClick={() => handleOpenEdit(item)}
-                            className="text-brand-dark/15 hover:text-brand-accent transition-all p-1.5 hover:bg-brand-accent/5 rounded-lg"
-                            title="Edit"
-                          >
-                            <Pencil size={12} />
-                          </button>
-                          <button 
-                            onClick={() => handleDeleteEvent(item.id)}
-                            className="text-brand-dark/15 hover:text-red-400 transition-all p-1.5 hover:bg-red-50 rounded-lg"
-                            title="Delete"
-                          >
-                            <Trash2 size={12} />
-                          </button>
-                        </div>
-                      </div>
-
-                      <div className="flex gap-3 items-start">
-                        <div className={`flex-shrink-0 pt-0.5 ${item.color?.split(' ')[1] || 'text-brand-accent'} opacity-80`}>
-                          <Icon size={20} strokeWidth={2.5} />
-                        </div>
-                        <div className="flex flex-col gap-1 min-w-0">
-                          <h3 className="text-base font-bold text-brand-dark font-display leading-tight truncate">{item.title}</h3>
-                          {item.location && (
-                            <div className="flex items-center gap-2 text-brand-dark/40 text-[10px] font-medium font-sans">
-                              <div className="flex items-center gap-1 min-w-0">
-                                <MapPin size={10} className="flex-shrink-0 opacity-40" />
-                                <span className="truncate">{item.location}</span>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-
-                      {item.desc && (
-                        <div className="bg-gray-50/30 rounded-xl px-3 py-2 border border-gray-100/50">
-                          <p className="text-[10px] leading-relaxed text-brand-dark/40 font-sans italic line-clamp-1">{item.desc}</p>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </Reorder.Item>
-              );
-            })}
+            {events.map((item) => (
+              <ItineraryItem
+                key={item.id}
+                item={item}
+                handleOpenEdit={handleOpenEdit}
+                handleDeleteEvent={handleDeleteEvent}
+                setSelectedEvent={setSelectedEvent}
+                setIsDetailOpen={setIsDetailOpen}
+              />
+            ))}
           </Reorder.Group>
         )}
 
